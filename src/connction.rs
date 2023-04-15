@@ -33,6 +33,7 @@ impl Connection {
             if n == 0 {
                 return Err(anyhow::Error::msg("End of stream"));
             }
+            log::debug!("Received line from {}: {}", self.addr, line.trim());
             self.tokens = line.trim().split(" ").map(|s| s.to_owned()).collect();
         }
     }
@@ -48,8 +49,21 @@ impl Connection {
         }
     }
 
+    pub async fn read_expect<T: ToString>(&mut self, expect: T) -> Result<()> {
+        let token = self.read_token().await?;
+        let expect: String = expect.to_string();
+        if token != expect {
+            Err(anyhow::Error::msg(format!(
+                "Expected to read {expect}, found {token}"
+            )))
+        } else {
+            Ok(())
+        }
+    }
+
     #[must_use]
     pub async fn write<T: std::fmt::Display>(&mut self, s: T) -> Result<()> {
+        log::debug!("Sending {s}");
         let s = format!("{}\n", s);
         let mut buf = s.as_bytes();
         while !buf.is_empty() {
