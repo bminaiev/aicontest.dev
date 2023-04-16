@@ -1,9 +1,13 @@
-use std::sync::Arc;
-
 use clap::Parser;
-use tokio::{net::TcpListener, sync::watch};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, watch},
+};
 
-use crate::{connction::Connection, engine, game_state::GameState, PORT};
+use crate::{
+    connction::Connection, engine, game_state::GameState, player_move::PlayerMove, point::Point,
+    PORT,
+};
 use anyhow::Result;
 
 #[derive(Parser)]
@@ -16,9 +20,11 @@ pub struct Args {
 async fn handle_connection(
     mut conn: Connection,
     mut rx_game_stats: watch::Receiver<Option<GameState>>,
+    tx_moves: mpsc::Sender<PlayerMove>,
 ) -> Result<()> {
     conn.write("LOGIN").await?;
     let login = conn.read_token().await?;
+    // TODO: validation
     log::info!("Got login: {login}");
     // TODO: better auth.
     let mut state;
@@ -26,19 +32,35 @@ async fn handle_connection(
         rx_game_stats.changed().await?;
         state = rx_game_stats.borrow().clone();
         if let Some(state) = &mut state {
-            state.make_player_first(&login);
+            if !state.make_player_first(&login) {
+                tx_moves
+                    .send(PlayerMove {
+                        name: login.clone(),
+                        target: Point::ZERO,
+                    })
+                    .await?;
+                continue;
+            }
             state.send_to_conn(&mut conn).await?;
-        }
-        // TODO: reshuffle players to make you first.
 
-        let xx = conn.read_token().await?;
-        log::info!("Received {xx} from {:?}", conn.addr);
-
-        if xx == "EXIT" {
-            break;
+            let cmd = conn.read_token().await?;
+            if cmd == "GO" {
+                let x: i32 = conn.read().await?;
+                let y: i32 = conn.read().await?;
+                tx_moves
+                    .send(PlayerMove {
+                        name: login.clone(),
+                        target: Point { x, y },
+                    })
+                    .await?;
+            } else if cmd == "EXIT" {
+                return Ok(());
+            } else {
+                conn.write(format!("UNKNOWN command '{cmd}', expected 'GO' or 'EXIT'"))
+                    .await?;
+            }
         }
     }
-    Ok(())
 }
 
 #[tokio::main]
@@ -49,17 +71,20 @@ pub async fn run(args: Args) -> Result<()> {
     log::info!("Listening to port {port}");
 
     let (tx_game_states, rx_game_states) = watch::channel::<Option<GameState>>(None);
-    tokio::spawn(async move { engine::run(tx_game_states).await });
+    let (tx_moves, rx_moves) = mpsc::channel::<PlayerMove>(1024);
+    tokio::spawn(async move { engine::run(tx_game_states, rx_moves).await });
 
     // TODO: ip-based rate limiting.
     loop {
         let (tcp_stream, addr) = listener.accept().await.unwrap();
         log::info!("New connection from {addr:?}");
         let rx_game_states = rx_game_states.clone();
+        let tx_moves = tx_moves.clone();
         tokio::spawn(async move {
             match handle_connection(
                 Connection::new(tcp_stream, addr.clone()),
-                rx_game_states.clone(),
+                rx_game_states,
+                tx_moves,
             )
             .await
             {

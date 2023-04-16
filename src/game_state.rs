@@ -1,7 +1,8 @@
 use crate::connction::Connection;
 use crate::consts::{
-    HEIGHT, MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, WIDTH,
+    HEIGHT, MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, PLAYER_RADIUS, WIDTH,
 };
+use crate::player_move::PlayerMove;
 use crate::point::Point;
 use anyhow::Result;
 use rand::seq::SliceRandom;
@@ -118,13 +119,18 @@ impl GameState {
         while self.items.len() < MAX_ITEMS {
             // TODO: make logic more interesting
             let r = rng.gen_range(MIN_ITEM_R..MAX_ITEM_R);
-            let x = rng.gen_range(r..self.width - r);
-            let y = rng.gen_range(r..self.height - r);
             self.items.push(Item {
-                pos: Point { x, y },
+                pos: self.gen_rand_position(r),
                 radius: r,
             })
         }
+    }
+
+    fn gen_rand_position(&self, radius: i32) -> Point {
+        let mut rng = thread_rng();
+        let x = rng.gen_range(radius..self.width - radius);
+        let y = rng.gen_range(radius..self.height - radius);
+        Point { x, y }
     }
 
     pub fn new() -> Self {
@@ -174,11 +180,39 @@ impl GameState {
         Ok(())
     }
 
-    pub fn make_player_first(&mut self, player_name: &str) {
+    fn find_player_idx(&self, player_name: &str) -> Option<usize> {
         for i in 0..self.players.len() {
             if self.players[i].name == player_name {
-                self.players.swap(0, i);
+                return Some(i);
             }
+        }
+        None
+    }
+
+    pub fn make_player_first(&mut self, player_name: &str) -> bool {
+        if let Some(idx) = self.find_player_idx(player_name) {
+            self.players.swap(0, idx);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn apply_move(&mut self, player_move: PlayerMove) {
+        // TODO: validate move
+        if let Some(idx) = self.find_player_idx(&player_move.name) {
+            self.players[idx].target = player_move.target;
+        } else {
+            let radius = PLAYER_RADIUS;
+            let pos = self.gen_rand_position(radius);
+            self.players.push(Player {
+                name: player_move.name,
+                pos,
+                speed: Point::ZERO,
+                target: pos,
+                score: 0,
+                radius,
+            });
         }
     }
 }

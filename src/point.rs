@@ -1,10 +1,12 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
 }
 
 impl Point {
+    pub const ZERO: Self = Point { x: 0, y: 0 };
+
     pub fn len2(&self) -> i32 {
         self.x * self.x + self.y * self.y
     }

@@ -63,7 +63,7 @@ impl Connection {
 
     #[must_use]
     pub async fn write<T: std::fmt::Display>(&mut self, s: T) -> Result<()> {
-        log::debug!("Sending {s}");
+        log::debug!("Sending to {}: {s}", self.addr);
         let s = format!("{}\n", s);
         let mut buf = s.as_bytes();
         while !buf.is_empty() {
