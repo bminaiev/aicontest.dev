@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 pub mod client;
 pub mod connction;
 pub mod consts;
+pub mod engine;
 pub mod game_state;
 pub mod point;
 pub mod server;

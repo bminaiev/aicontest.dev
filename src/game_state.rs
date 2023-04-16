@@ -1,20 +1,24 @@
+use crate::connction::Connection;
 use crate::consts::{
     HEIGHT, MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, WIDTH,
 };
 use crate::point::Point;
+use anyhow::Result;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
+#[derive(Clone)]
 pub struct Player {
-    name: String,
+    pub name: String,
     pos: Point,
     speed: Point,
     target: Point,
-    score: i64,
+    pub score: i64,
     radius: i32,
     // TODO: contact info?
 }
 
+#[derive(Clone)]
 pub struct Item {
     pos: Point,
     radius: i32,
@@ -28,17 +32,18 @@ impl Item {
     }
 }
 
+#[derive(Clone)]
 pub struct GameState {
     width: i32,
     height: i32,
-    turn: usize,
+    pub turn: usize,
     max_turns: usize,
-    players: Vec<Player>,
+    pub players: Vec<Player>,
     items: Vec<Item>,
 }
 
 pub struct GameResults {
-    players: Vec<Player>,
+    pub players: Vec<Player>,
 }
 
 impl GameResults {
@@ -133,5 +138,47 @@ impl GameState {
         };
         res.add_more_items();
         res
+    }
+
+    pub async fn send_to_conn(&self, conn: &mut Connection) -> Result<()> {
+        conn.write(format!(
+            "TURN {turn} {max_turns}",
+            turn = self.turn,
+            max_turns = self.max_turns
+        ))
+        .await?;
+        conn.write(self.players.len()).await?;
+        for player in self.players.iter() {
+            conn.write(format!(
+                "{name} {score} {x} {y} {r} {vx} {vy}",
+                name = player.name,
+                score = player.score,
+                x = player.pos.x,
+                y = player.pos.y,
+                r = player.radius,
+                vx = player.speed.x,
+                vy = player.speed.y
+            ))
+            .await?;
+        }
+        conn.write(self.items.len()).await?;
+        for item in self.items.iter() {
+            conn.write(format!(
+                "{x} {y} {r}",
+                x = item.pos.x,
+                y = item.pos.y,
+                r = item.radius
+            ))
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub fn make_player_first(&mut self, player_name: &str) {
+        for i in 0..self.players.len() {
+            if self.players[i].name == player_name {
+                self.players.swap(0, i);
+            }
+        }
     }
 }
