@@ -16,13 +16,11 @@ pub struct Args {
     port: Option<u16>,
 }
 
-// TODO: watch/play
-async fn handle_connection(
+async fn handle_play(
     mut conn: Connection,
     mut rx_game_stats: watch::Receiver<Option<GameState>>,
     tx_moves: mpsc::Sender<PlayerMove>,
 ) -> Result<()> {
-    conn.write("LOGIN").await?;
     let login = conn.read_token().await?;
     // TODO: validation
     log::info!("Got login: {login}");
@@ -61,6 +59,43 @@ async fn handle_connection(
             }
         }
     }
+}
+
+async fn handle_watch(
+    mut conn: Connection,
+    mut rx_game_stats: watch::Receiver<Option<GameState>>,
+) -> Result<()> {
+    let mut state;
+    loop {
+        rx_game_stats.changed().await?;
+        state = rx_game_stats.borrow().clone();
+        if let Some(state) = &mut state {
+            state.send_to_conn(&mut conn).await?;
+        }
+    }
+}
+
+// TODO: watch/play
+async fn handle_connection(
+    mut conn: Connection,
+    rx_game_stats: watch::Receiver<Option<GameState>>,
+    tx_moves: mpsc::Sender<PlayerMove>,
+) -> Result<()> {
+    conn.write("HELLO").await?;
+    loop {
+        let cmd_type = conn.read_token().await?;
+        if cmd_type == "WATCH" {
+            handle_watch(conn, rx_game_stats).await?;
+            break;
+        }
+        if cmd_type == "PLAY" {
+            handle_play(conn, rx_game_stats, tx_moves).await?;
+            break;
+        }
+        conn.write(format!("Expected 'WATCH' or 'PLAY', got '{}'", cmd_type))
+            .await?;
+    }
+    Ok(())
 }
 
 #[tokio::main]
