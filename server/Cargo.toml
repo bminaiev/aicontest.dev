@@ -1,0 +1,13 @@
+[package]
+name = "game"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4.17"
+env_logger = "0.10.0"
+anyhow = "1.0"
+clap = { version = "4.2.2", features = ["derive"] }
+tokio = { version = "1.27.0", features = ["full"] }
+rand = "0.8.5"
+

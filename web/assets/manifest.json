@@ -1,0 +1,17 @@
+{
+    "name": "Game",
+    "short_name": "game",
+    "icons": [
+      {
+        "src": "./icon.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ],
+    "lang": "en-US",
+    "id": "/index.html",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "white",
+    "theme_color": "white"
+  }
