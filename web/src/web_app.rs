@@ -4,13 +4,16 @@ use std::{
     sync::Arc,
 };
 
-use egui::{pos2, Align2, Context, FontId, Pos2, Rounding};
+use egui::{pos2, Align2, Context, FontId, Pos2, Rounding, Stroke};
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
     SinkExt, StreamExt,
 };
 
-use game_common::game_state::{GameState, Player};
+use game_common::{
+    game_state::{GameState, Player},
+    point::Point,
+};
 use wasm_bindgen::{
     prelude::{wasm_bindgen, Closure},
     JsCast,
@@ -46,7 +49,6 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<String>>, ctx: Arc<Context
         move |e: MessageEvent| match e.data().dyn_into::<js_sys::JsString>() {
             Ok(data) => {
                 let message = data.to_string();
-                log(&format!("Received message: {}", message));
                 match sender.unbounded_send(message.into()) {
                     Ok(()) => {}
                     Err(err) => {
@@ -151,12 +153,11 @@ impl eframe::App for TemplateApp {
 
 fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
     let available_rect = ui.available_rect_before_wrap();
-    log(&format!("Size: {available_rect:?}"));
     let zoom_x = available_rect.width() / game_state.width as f32;
     let zoom_y = available_rect.height() / game_state.height as f32;
     let zoom = if zoom_x < zoom_y { zoom_x } else { zoom_y };
     let conv = |p: Pos2| -> Pos2 { available_rect.min + p.to_vec2() * zoom };
-    log(&format!("Zoom: {zoom}"));
+    let conv_pt = |p: Point| -> Pos2 { conv(pos2(p.x as f32, p.y as f32)) };
     {
         // background
         let background_color = egui::Color32::from_rgb(240, 240, 240);
@@ -176,7 +177,7 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
         // draw items
         for (id, item) in game_state.items.iter().enumerate() {
             let color = egui::Color32::LIGHT_BLUE;
-            let center = conv(pos2(item.pos.x as f32, item.pos.y as f32));
+            let center = conv_pt(item.pos);
             ui.painter()
                 .circle_filled(center, item.radius as f32 * zoom, color);
             // draw item id
@@ -191,17 +192,19 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
     }
     {
         // draw players
-        for (id, player) in game_state.players.iter().enumerate() {
+        for player in game_state.players.iter() {
             let color = choose_player_color(player);
-            let center = conv(pos2(player.pos.x as f32, player.pos.y as f32));
+            let center = conv_pt(player.pos);
             ui.painter()
                 .circle_filled(center, player.radius as f32 * zoom, color);
+            ui.painter()
+                .line_segment([center, conv_pt(player.target)], Stroke::new(2.0, color));
             // draw player id
             ui.painter().text(
                 center,
                 Align2::CENTER_CENTER,
                 format!("{}: {}", player.name, player.score),
-                FontId::monospace(15.0),
+                FontId::monospace(10.0),
                 egui::Color32::BLACK,
             );
         }

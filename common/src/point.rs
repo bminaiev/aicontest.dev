@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
@@ -23,6 +23,12 @@ impl Point {
             x: ((self.x as f64) * mult).round() as i32,
             y: ((self.y as f64) * mult).round() as i32,
         }
+    }
+
+    pub fn dist2(&self, other: &Self) -> i32 {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        dx * dx + dy * dy
     }
 }
 

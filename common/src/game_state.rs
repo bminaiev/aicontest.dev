@@ -14,8 +14,8 @@ use rand::{thread_rng, Rng};
 pub struct Player {
     pub name: String,
     pub pos: Point,
-    speed: Point,
-    target: Point,
+    pub speed: Point,
+    pub target: Point,
     pub score: i64,
     pub radius: i32,
     // TODO: contact info?
@@ -201,14 +201,16 @@ impl GameState {
         res += &format!("{}\n", self.players.len());
         for player in self.players.iter() {
             res += &format!(
-                "{name} {score} {x} {y} {r} {vx} {vy}\n",
+                "{name} {score} {x} {y} {r} {vx} {vy} {target_x} {target_y}\n",
                 name = player.name,
                 score = player.score,
                 x = player.pos.x,
                 y = player.pos.y,
                 r = player.radius,
                 vx = player.speed.x,
-                vy = player.speed.y
+                vy = player.speed.y,
+                target_x = player.target.x,
+                target_y = player.target.y,
             );
         }
         res += &format!("{}\n", self.items.len());
@@ -220,6 +222,7 @@ impl GameState {
                 r = item.radius
             );
         }
+        res += "END_STATE\n";
         res
     }
 
@@ -250,13 +253,18 @@ impl GameState {
             let r = tokens.next("player r")?;
             let vx = tokens.next("player vx")?;
             let vy = tokens.next("player vy")?;
+            let target_x = tokens.next("player target_x")?;
+            let target_y = tokens.next("player target_y")?;
             res.players.push(Player {
                 name,
                 score,
                 pos: Point { x, y },
                 radius: r,
                 speed: Point { x: vx, y: vy },
-                target: Point { x, y },
+                target: Point {
+                    x: target_x,
+                    y: target_y,
+                },
             });
         }
         let num_items = tokens.next("num items")?;
@@ -268,6 +276,10 @@ impl GameState {
                 pos: Point { x, y },
                 radius: r,
             });
+        }
+        let end_state: String = tokens.next("END_STATE")?;
+        if end_state != "END_STATE" {
+            bail!("Expected END_STATE, got {}", end_state);
         }
         Ok(res)
     }

@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 pub mod client;
-pub mod connction;
+pub mod connection;
 pub mod engine;
 pub mod server;
 

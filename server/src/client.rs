@@ -3,7 +3,7 @@ use std::{net::SocketAddr, str::FromStr};
 use clap::Parser;
 use tokio::net::TcpStream;
 
-use crate::{connction::Connection, DEFAULT_TCP_PORT};
+use crate::{connection::Connection, DEFAULT_TCP_PORT};
 use anyhow::Result;
 
 #[derive(Parser)]

@@ -2,6 +2,7 @@
 
 members = [
     "server",
+    "example-client",
     "web",
     "common"
 ]
