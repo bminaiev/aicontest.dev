@@ -146,17 +146,19 @@ impl GameState {
         res
     }
 
-    pub async fn send_to_conn(&self, conn: &mut Connection) -> Result<()> {
-        conn.write(format!(
-            "TURN {turn} {max_turns}",
+    pub fn to_string(&self) -> String {
+        let mut res = String::new();
+        res += &format!(
+            "TURN {turn} {max_turns} {width} {height}\n",
             turn = self.turn,
-            max_turns = self.max_turns
-        ))
-        .await?;
-        conn.write(self.players.len()).await?;
+            max_turns = self.max_turns,
+            width = self.width,
+            height = self.height,
+        );
+        res += &format!("{}\n", self.players.len());
         for player in self.players.iter() {
-            conn.write(format!(
-                "{name} {score} {x} {y} {r} {vx} {vy}",
+            res += &format!(
+                "{name} {score} {x} {y} {r} {vx} {vy}\n",
                 name = player.name,
                 score = player.score,
                 x = player.pos.x,
@@ -164,19 +166,22 @@ impl GameState {
                 r = player.radius,
                 vx = player.speed.x,
                 vy = player.speed.y
-            ))
-            .await?;
+            );
         }
-        conn.write(self.items.len()).await?;
+        res += &format!("{}\n", self.items.len());
         for item in self.items.iter() {
-            conn.write(format!(
-                "{x} {y} {r}",
+            res += &format!(
+                "{x} {y} {r}\n",
                 x = item.pos.x,
                 y = item.pos.y,
                 r = item.radius
-            ))
-            .await?;
+            );
         }
+        res
+    }
+
+    pub async fn send_to_conn(&self, conn: &mut Connection) -> Result<()> {
+        conn.write(self.to_string()).await?;
         Ok(())
     }
 

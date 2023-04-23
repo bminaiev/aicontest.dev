@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use egui::Context;
 use futures::{
     channel::mpsc::{self, UnboundedReceiver},
@@ -20,12 +22,43 @@ pub struct TemplateApp {
 }
 
 use gloo_timers::future::TimeoutFuture;
-use web_sys::{MessageEvent, WebSocket};
+use web_sys::{CloseEvent, MessageEvent, WebSocket};
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
+}
+
+fn reconnect(url: String) {
+    log("Connection closed, reconnecting...");
+
+    let ws = WebSocket::new(&url).unwrap();
+
+    let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
+        match e.data().dyn_into::<js_sys::JsString>() {
+            Ok(data) => {
+                let message = data.to_string();
+                log(&format!("Received message: {}", message));
+            }
+            Err(err) => {
+                log("Received non-string message: {err:?}");
+            }
+        }
+    }) as Box<dyn FnMut(MessageEvent)>);
+
+    let url = Arc::new(url);
+
+    let onclose_callback = Closure::wrap(Box::new(move |_: CloseEvent| {
+        // TODO: wait a bit before reconnecting
+        reconnect((*url).clone());
+    }) as Box<dyn FnMut(CloseEvent)>);
+
+    ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+    ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+
+    onmessage_callback.forget();
+    onclose_callback.forget();
 }
 
 impl TemplateApp {
@@ -39,20 +72,10 @@ impl TemplateApp {
         let ctx = cc.egui_ctx.clone();
 
         spawn_local(async move {
-            let url = "ws://127.0.0.1:7877";
+            let url = "ws://127.0.0.1:7878";
             // let url = "wss://echo.websocket.events";
 
-            let ws = WebSocket::new(url).unwrap();
-
-            let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
-                if let Ok(data) = e.data().dyn_into::<js_sys::JsString>() {
-                    let message = data.to_string();
-                    log(&format!("Received message: {}", message));
-                }
-            }) as Box<dyn FnMut(MessageEvent)>);
-
-            ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-            onmessage_callback.forget();
+            reconnect(url.to_owned());
 
             for x in 1.. {
                 sender.send(format!("hello{x}")).await.unwrap();

@@ -1,2 +1,2 @@
 #!/bin/bash
-RUST_LOG=debug cargo run server
+RUST_LOG=debug cargo run --bin game -- server

@@ -21,7 +21,8 @@ enum Subcommands {
     Client(client::Args),
 }
 
-pub const PORT: u16 = 7877;
+pub const DEFAULT_TCP_PORT: u16 = 7877;
+pub const DEFAULT_WEB_SOCKET_PORT: u16 = 7878;
 
 fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
