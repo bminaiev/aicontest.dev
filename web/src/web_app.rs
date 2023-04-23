@@ -4,6 +4,10 @@ use futures::{
     SinkExt, StreamExt,
 };
 
+use wasm_bindgen::{
+    prelude::{wasm_bindgen, Closure},
+    JsCast,
+};
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 pub struct TemplateApp {
@@ -16,6 +20,13 @@ pub struct TemplateApp {
 }
 
 use gloo_timers::future::TimeoutFuture;
+use web_sys::{MessageEvent, WebSocket};
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
 
 impl TemplateApp {
     /// Called once before the first frame.
@@ -28,6 +39,21 @@ impl TemplateApp {
         let ctx = cc.egui_ctx.clone();
 
         spawn_local(async move {
+            let url = "ws://127.0.0.1:7877";
+            // let url = "wss://echo.websocket.events";
+
+            let ws = WebSocket::new(url).unwrap();
+
+            let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
+                if let Ok(data) = e.data().dyn_into::<js_sys::JsString>() {
+                    let message = data.to_string();
+                    log(&format!("Received message: {}", message));
+                }
+            }) as Box<dyn FnMut(MessageEvent)>);
+
+            ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+            onmessage_callback.forget();
+
             for x in 1.. {
                 sender.send(format!("hello{x}")).await.unwrap();
                 ctx.request_repaint();
@@ -67,18 +93,6 @@ impl eframe::App for TemplateApp {
         // Pick whichever suits you.
         // Tip: a good default choice is to just keep the `CentralPanel`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        _frame.close();
-                    }
-                });
-            });
-        });
 
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.heading("Side Panel");

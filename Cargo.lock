@@ -746,6 +746,7 @@ dependencies = [
  "egui",
  "futures",
  "gloo-timers",
+ "js-sys",
  "tracing-wasm",
  "wasm-bindgen",
  "wasm-bindgen-futures",
