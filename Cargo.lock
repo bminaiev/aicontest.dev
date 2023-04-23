@@ -788,10 +788,19 @@ dependencies = [
  "clap",
  "env_logger",
  "futures-util",
+ "game-common",
  "log",
  "rand",
  "tokio",
  "tokio-tungstenite",
+]
+
+[[package]]
+name = "game-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rand",
 ]
 
 [[package]]
@@ -803,6 +812,8 @@ dependencies = [
  "eframe",
  "egui",
  "futures",
+ "game-common",
+ "getrandom",
  "gloo-timers",
  "js-sys",
  "tracing-wasm",
@@ -838,8 +849,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c85e1d9ab2eadba7e5040d4e09cbd6d072b76a557ad64e797c2cb9d4da21d7e4"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]

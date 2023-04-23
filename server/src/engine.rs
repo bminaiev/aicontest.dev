@@ -1,6 +1,8 @@
 use tokio::sync::{mpsc, watch};
 
-use crate::{consts::TURN_WAIT_TIME, game_state::GameState, player_move::PlayerMove};
+use game_common::consts::TURN_WAIT_TIME;
+use game_common::game_state::{self, GameState};
+use game_common::player_move::PlayerMove;
 
 pub async fn run(
     tx_game_states: watch::Sender<Option<GameState>>,
@@ -19,10 +21,10 @@ pub async fn run(
                 state.apply_move(player_move);
             }
             match state.next_turn() {
-                crate::game_state::NextTurn::GameState(next_state) => {
+                game_state::NextTurn::GameState(next_state) => {
                     state = next_state;
                 }
-                crate::game_state::NextTurn::FinalResults(results) => {
+                game_state::NextTurn::FinalResults(results) => {
                     log::info!("Game finished! Results:");
                     for player in results.players.iter() {
                         log::info!("{}: {}", player.name, player.score);

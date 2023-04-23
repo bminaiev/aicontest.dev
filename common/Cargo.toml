@@ -1,0 +1,9 @@
+[package]
+name = "game-common"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+rand = "0.8.5"
+anyhow = "1.0.70"

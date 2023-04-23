@@ -1,14 +1,12 @@
 use clap::Parser;
+use game_common::{game_state::GameState, player_move::PlayerMove, point::Point};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, watch},
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use crate::{
-    connction::Connection, engine, game_state::GameState, player_move::PlayerMove, point::Point,
-    DEFAULT_TCP_PORT, DEFAULT_WEB_SOCKET_PORT,
-};
+use crate::{connction::Connection, engine, DEFAULT_TCP_PORT, DEFAULT_WEB_SOCKET_PORT};
 use anyhow::Result;
 use futures_util::{stream::StreamExt, SinkExt};
 
@@ -43,7 +41,7 @@ async fn handle_tcp_play(
                     .await?;
                 continue;
             }
-            state.send_to_conn(&mut conn).await?;
+            conn.write(state.to_string()).await?;
 
             let cmd = conn.read_token().await?;
             if cmd == "GO" {
@@ -74,7 +72,7 @@ async fn handle_tcp_watch(
         rx_game_states.changed().await?;
         state = rx_game_states.borrow().clone();
         if let Some(state) = &mut state {
-            state.send_to_conn(&mut conn).await?;
+            conn.write(state.to_string()).await?;
         }
     }
 }

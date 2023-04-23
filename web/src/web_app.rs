@@ -1,11 +1,16 @@
-use std::sync::Arc;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
-use egui::Context;
+use egui::{pos2, Align2, Context, FontId, Pos2, Rounding};
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
     SinkExt, StreamExt,
 };
 
+use game_common::game_state::{GameState, Player};
 use wasm_bindgen::{
     prelude::{wasm_bindgen, Closure},
     JsCast,
@@ -123,19 +128,94 @@ impl eframe::App for TemplateApp {
 
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("{last_msg}"));
+                ui.label(format!("===================================\n{last_msg}"));
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("eframe template");
-
-            if !last_msg.is_empty() {
-                let available_size = ui.available_size();
-                log(&format!("Size: {available_size:?}"));
+            match GameState::from_string(&last_msg) {
+                Ok(game_state) => {
+                    draw_state(ui, &game_state);
+                }
+                Err(err) => {
+                    if !last_msg.is_empty() {
+                        log(&format!("Can't parse state?: {err:?}"))
+                    }
+                }
             }
 
             egui::warn_if_debug_build(ui);
         });
     }
+}
+
+fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
+    let available_rect = ui.available_rect_before_wrap();
+    log(&format!("Size: {available_rect:?}"));
+    let zoom_x = available_rect.width() / game_state.width as f32;
+    let zoom_y = available_rect.height() / game_state.height as f32;
+    let zoom = if zoom_x < zoom_y { zoom_x } else { zoom_y };
+    let conv = |p: Pos2| -> Pos2 { available_rect.min + p.to_vec2() * zoom };
+    log(&format!("Zoom: {zoom}"));
+    {
+        // background
+        let background_color = egui::Color32::from_rgb(240, 240, 240);
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(
+                conv(pos2(0.0, 0.0)),
+                egui::vec2(
+                    game_state.width as f32 * zoom,
+                    game_state.height as f32 * zoom,
+                ),
+            ),
+            Rounding::default(),
+            background_color,
+        );
+    }
+    {
+        // draw items
+        for (id, item) in game_state.items.iter().enumerate() {
+            let color = egui::Color32::LIGHT_BLUE;
+            let center = conv(pos2(item.pos.x as f32, item.pos.y as f32));
+            ui.painter()
+                .circle_filled(center, item.radius as f32 * zoom, color);
+            // draw item id
+            ui.painter().text(
+                center,
+                Align2::CENTER_CENTER,
+                id.to_string(),
+                FontId::monospace(15.0),
+                egui::Color32::BLACK,
+            );
+        }
+    }
+    {
+        // draw players
+        for (id, player) in game_state.players.iter().enumerate() {
+            let color = choose_player_color(player);
+            let center = conv(pos2(player.pos.x as f32, player.pos.y as f32));
+            ui.painter()
+                .circle_filled(center, player.radius as f32 * zoom, color);
+            // draw player id
+            ui.painter().text(
+                center,
+                Align2::CENTER_CENTER,
+                format!("{}: {}", player.name, player.score),
+                FontId::monospace(15.0),
+                egui::Color32::BLACK,
+            );
+        }
+    }
+}
+
+fn choose_player_color(player: &Player) -> egui::Color32 {
+    let hash = {
+        let mut hasher = DefaultHasher::default();
+        player.name.hash(&mut hasher);
+        hasher.finish()
+    };
+    let r = (hash >> 16) as u8;
+    let g = (hash >> 8) as u8;
+    let b = hash as u8;
+    egui::Color32::from_rgb(r, g, b)
 }

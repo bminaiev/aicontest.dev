@@ -1,28 +1,30 @@
-use crate::connction::Connection;
+use std::collections::VecDeque;
+use std::str::FromStr;
+
 use crate::consts::{
     HEIGHT, MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, PLAYER_RADIUS, WIDTH,
 };
 use crate::player_move::PlayerMove;
 use crate::point::Point;
-use anyhow::Result;
+use anyhow::{anyhow, bail};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
 #[derive(Clone)]
 pub struct Player {
     pub name: String,
-    pos: Point,
+    pub pos: Point,
     speed: Point,
     target: Point,
     pub score: i64,
-    radius: i32,
+    pub radius: i32,
     // TODO: contact info?
 }
 
 #[derive(Clone)]
 pub struct Item {
-    pos: Point,
-    radius: i32,
+    pub pos: Point,
+    pub radius: i32,
 }
 
 impl Item {
@@ -31,16 +33,22 @@ impl Item {
         let max_ok_dist = self.radius + player.radius;
         dist.len2() <= max_ok_dist * max_ok_dist
     }
+
+    pub fn intersects_item(&self, another: &Self) -> bool {
+        let dist = self.pos - another.pos;
+        let max_ok_dist = self.radius + another.radius;
+        dist.len2() <= max_ok_dist * max_ok_dist
+    }
 }
 
 #[derive(Clone)]
 pub struct GameState {
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
     pub turn: usize,
-    max_turns: usize,
+    pub max_turns: usize,
     pub players: Vec<Player>,
-    items: Vec<Item>,
+    pub items: Vec<Item>,
 }
 
 pub struct GameResults {
@@ -70,6 +78,31 @@ fn clamp(pos: &mut i32, speed: &mut i32, min_pos: i32, max_pos: i32) {
     }
 }
 
+struct TokenReader {
+    tokens: VecDeque<String>,
+}
+
+impl TokenReader {
+    pub fn new(s: &str) -> Self {
+        Self {
+            tokens: s.split_ascii_whitespace().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    pub fn next<T>(&mut self, err_msg: &str) -> anyhow::Result<T>
+    where
+        T: FromStr,
+        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+    {
+        Ok(self
+            .tokens
+            .pop_front()
+            .ok_or_else(|| anyhow!(err_msg.to_owned()))?
+            .parse()
+            .map_err(|err| anyhow!("Failed to parse '{err_msg}': {err:?}"))?)
+    }
+}
+
 impl GameState {
     pub fn next_turn(mut self) -> NextTurn {
         for player in self.players.iter_mut() {
@@ -90,7 +123,7 @@ impl GameState {
                 &mut player.pos.y,
                 &mut player.speed.y,
                 player.radius,
-                self.width - player.radius,
+                self.height - player.radius,
             );
         }
         let mut ids: Vec<_> = (0..self.players.len()).collect();
@@ -119,10 +152,20 @@ impl GameState {
         while self.items.len() < MAX_ITEMS {
             // TODO: make logic more interesting
             let r = rng.gen_range(MIN_ITEM_R..MAX_ITEM_R);
-            self.items.push(Item {
+            let new_item = Item {
                 pos: self.gen_rand_position(r),
                 radius: r,
-            })
+            };
+            let mut ok = true;
+            for existing in self.items.iter() {
+                if existing.intersects_item(&new_item) {
+                    ok = false;
+                    break;
+                }
+            }
+            if ok {
+                self.items.push(new_item)
+            }
         }
     }
 
@@ -180,9 +223,53 @@ impl GameState {
         res
     }
 
-    pub async fn send_to_conn(&self, conn: &mut Connection) -> Result<()> {
-        conn.write(self.to_string()).await?;
-        Ok(())
+    pub fn from_string(s: &str) -> anyhow::Result<Self> {
+        let mut tokens = TokenReader::new(s);
+        let cmd_word: String = tokens.next("TURN")?;
+        if cmd_word != "TURN" {
+            bail!("Expected TURN, got {}", cmd_word);
+        }
+        let turn = tokens.next("turn")?;
+        let max_turns = tokens.next("max_turn")?;
+        let width = tokens.next("width")?;
+        let height = tokens.next("height")?;
+        let mut res = Self {
+            width,
+            height,
+            turn,
+            max_turns,
+            players: vec![],
+            items: vec![],
+        };
+        let num_players = tokens.next("num_players")?;
+        for _ in 0..num_players {
+            let name = tokens.next("player name")?;
+            let score = tokens.next("player score")?;
+            let x = tokens.next("player x")?;
+            let y = tokens.next("player y")?;
+            let r = tokens.next("player r")?;
+            let vx = tokens.next("player vx")?;
+            let vy = tokens.next("player vy")?;
+            res.players.push(Player {
+                name,
+                score,
+                pos: Point { x, y },
+                radius: r,
+                speed: Point { x: vx, y: vy },
+                target: Point { x, y },
+            });
+        }
+        let num_items = tokens.next("num items")?;
+        for _ in 0..num_items {
+            let x = tokens.next("item x")?;
+            let y = tokens.next("item y")?;
+            let r = tokens.next("item r")?;
+            res.items.push(Item {
+                pos: Point { x, y },
+                radius: r,
+            });
+        }
+        Ok(res)
     }
 
     fn find_player_idx(&self, player_name: &str) -> Option<usize> {

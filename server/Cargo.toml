@@ -12,3 +12,4 @@ tokio = { version = "1.27.0", features = ["full"] }
 rand = "0.8.5"
 tokio-tungstenite = "0.18.0"
 futures-util = "0.3.28"
+game-common = { path = "../common" }

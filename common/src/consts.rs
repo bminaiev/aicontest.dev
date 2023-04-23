@@ -9,5 +9,5 @@ pub const PLAYER_RADIUS: i32 = 10;
 
 pub const WIDTH: i32 = 800;
 pub const HEIGHT: i32 = 600;
-pub const MAX_TURNS: usize = 300;
-pub const TURN_WAIT_TIME: Duration = Duration::from_secs(1);
+pub const MAX_TURNS: usize = 3000;
+pub const TURN_WAIT_TIME: Duration = Duration::from_millis(100);
