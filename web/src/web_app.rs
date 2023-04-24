@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use egui::{pos2, Align2, Context, FontId, Pos2, Rounding, Stroke};
+use egui::{pos2, vec2, Align2, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
     SinkExt, StreamExt,
@@ -14,6 +14,7 @@ use game_common::{
     game_state::{GameState, Player},
     point::Point,
 };
+use instant::{Duration, Instant, SystemTime};
 use wasm_bindgen::{
     prelude::{wasm_bindgen, Closure},
     JsCast,
@@ -25,12 +26,18 @@ pub struct TemplateApp {
     label: String,
 
     value: f32,
-    receiver: UnboundedReceiver<String>,
-    last_msg: String,
+    receiver: UnboundedReceiver<StateWithTime>,
+    state_approximator: StateApproximator,
+
+    counter: u64,
+    start: Instant,
+    updates_got: u64,
 }
 
 use gloo_timers::future::TimeoutFuture;
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
+
+use crate::state_approximator::{StateApproximator, StateWithTime};
 
 #[wasm_bindgen]
 extern "C" {
@@ -38,7 +45,7 @@ extern "C" {
     fn log(s: &str);
 }
 
-fn reconnect(url: String, sender: Arc<UnboundedSender<String>>, ctx: Arc<Context>) {
+fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<Context>) {
     log("Connection closed, reconnecting...");
 
     let ws = WebSocket::new(&url).unwrap();
@@ -48,15 +55,22 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<String>>, ctx: Arc<Context
         let ctx = ctx.clone();
         move |e: MessageEvent| match e.data().dyn_into::<js_sys::JsString>() {
             Ok(data) => {
-                let message = data.to_string();
-                match sender.unbounded_send(message.into()) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        log(&format!("Error sending message: {err:?}"));
+                let message: String = data.to_string().into();
+                match GameState::from_string(&message) {
+                    Ok(state) => {
+                        let state = StateWithTime {
+                            state,
+                            timestamp: SystemTime::now(),
+                        };
+                        match sender.unbounded_send(state) {
+                            Ok(()) => {}
+                            Err(err) => {
+                                log(&format!("Error sending message: {err:?}"));
+                            }
+                        }
                     }
+                    Err(err) => log(&format!("Error parsing state: {err:?}")),
                 }
-                // This is too early
-                ctx.request_repaint();
             }
             Err(err) => {
                 log("Received non-string message: {err:?}");
@@ -81,26 +95,18 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<String>>, ctx: Arc<Context
 impl TemplateApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        let (mut sender, receiver) = mpsc::unbounded::<String>();
+        let (sender, receiver) = mpsc::unbounded::<StateWithTime>();
 
         let ctx = cc.egui_ctx.clone();
 
         spawn_local(async move {
-            let url = "ws://127.0.0.1:7878";
-            // let url = "wss://echo.websocket.events";
+            let url = "ws://192.168.1.162:7878";
 
             reconnect(
                 url.to_owned(),
                 Arc::new(sender.clone()),
                 Arc::new(ctx.clone()),
             );
-
-            // while let Some(message) = receiver.next().await {
-            //     web_sys::console::log_1(&message.into());
-            // }
         });
 
         Self {
@@ -108,7 +114,10 @@ impl TemplateApp {
             label: "Hello World!".to_owned(),
             value: 2.7,
             receiver,
-            last_msg: "".to_owned(),
+            state_approximator: StateApproximator::default(),
+            counter: 0,
+            start: Instant::now(),
+            updates_got: 0,
         }
     }
 }
@@ -117,37 +126,49 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        while let Ok(Some(new_msg)) = self.receiver.try_next() {
-            self.last_msg = new_msg;
+        self.counter += 1;
+        ctx.request_repaint();
+        // ctx.request_repaint_after(Duration::from_millis(1000 / 60));
+        while let Ok(Some(state)) = self.receiver.try_next() {
+            self.state_approximator.add_state(state);
+            self.updates_got += 1;
         }
 
-        let Self {
-            label,
-            value,
-            receiver,
-            last_msg,
-        } = self;
-
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(format!("===================================\n{last_msg}"));
-            });
-        });
-
         egui::CentralPanel::default().show(ctx, |ui| {
-            match GameState::from_string(&last_msg) {
-                Ok(game_state) => {
-                    draw_state(ui, &game_state);
-                }
-                Err(err) => {
-                    if !last_msg.is_empty() {
-                        log(&format!("Can't parse state?: {err:?}"))
-                    }
-                }
+            let mut cur_turn = 0;
+            let mut max_turns = 0;
+            if let Some(game_state) = self.state_approximator.get_state() {
+                draw_state(ui, &game_state);
+                cur_turn = game_state.turn;
+                max_turns = game_state.max_turns;
             }
+            // TODO: show real fps
+            let info = format!(
+                "iter={iter}\nfps={fps:.3}\nturn={cur_turn}/{max_turns}\n",
+                iter = self.counter,
+                fps = self.counter as f64 / self.start.elapsed().as_secs_f64(),
+            );
+
+            ui.label(RichText::new(info).font(FontId::proportional(25.0)));
 
             egui::warn_if_debug_build(ui);
         });
+
+        // egui::CentralPanel::default().show(&ctx, |ui| {
+        //     ui.label(format!(
+        //         "===================================\n{}, fps={fps:.3}, upds={updates}\n",
+        //         self.counter,
+        //         fps = self.counter as f64 / self.start.elapsed().as_secs_f64(),
+        //         updates = self.updates_got,
+        //         // last_msg = self.last_msg
+        //     ));
+        // });
+
+        // egui::SidePanel::left("side_panel").show(ctx, |ui| {
+        //     ui.horizontal(|ui| {
+
+        //     });
+        // });
     }
 }
 
@@ -181,13 +202,13 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
             ui.painter()
                 .circle_filled(center, item.radius as f32 * zoom, color);
             // draw item id
-            ui.painter().text(
-                center,
-                Align2::CENTER_CENTER,
-                id.to_string(),
-                FontId::monospace(15.0),
-                egui::Color32::BLACK,
-            );
+            // ui.painter().text(
+            //     center,
+            //     Align2::CENTER_CENTER,
+            //     id.to_string(),
+            //     FontId::monospace(15.0),
+            //     egui::Color32::BLACK,
+            // );
         }
     }
     {
@@ -197,13 +218,12 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
             let center = conv_pt(player.pos);
             ui.painter()
                 .circle_filled(center, player.radius as f32 * zoom, color);
-            ui.painter()
-                .line_segment([center, conv_pt(player.target)], Stroke::new(2.0, color));
+            draw_arrow(ui, center, conv_pt(player.target), color);
             // draw player id
             ui.painter().text(
                 center,
-                Align2::CENTER_CENTER,
-                format!("{}: {}", player.name, player.score),
+                Align2::LEFT_CENTER,
+                format!("{} [score={}]", player.name, player.score),
                 FontId::monospace(10.0),
                 egui::Color32::BLACK,
             );
@@ -221,4 +241,23 @@ fn choose_player_color(player: &Player) -> egui::Color32 {
     let g = (hash >> 8) as u8;
     let b = hash as u8;
     egui::Color32::from_rgb(r, g, b)
+}
+
+fn draw_arrow(ui: &mut egui::Ui, from: Pos2, to: Pos2, color: egui::Color32) {
+    let dir = to - from;
+    let len = dir.length();
+    let dir = dir / len;
+    let arrow_len = 10.0;
+    let arrow_width = 5.0;
+    let arrow_start = to - dir * arrow_len;
+    let arrow_dir = vec2(dir.y, -dir.x);
+    let arrow_points = vec![
+        arrow_start + arrow_dir * arrow_width,
+        to,
+        arrow_start - arrow_dir * arrow_width,
+    ];
+    ui.painter()
+        .line_segment([from, to], Stroke::new(2.0, color));
+    ui.painter()
+        .add(Shape::line(arrow_points, Stroke::new(2.0, color)));
 }

@@ -830,6 +830,7 @@ dependencies = [
  "game-common",
  "getrandom",
  "gloo-timers",
+ "instant",
  "js-sys",
  "tracing-wasm",
  "wasm-bindgen",

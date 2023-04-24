@@ -1,3 +1,4 @@
+pub mod state_approximator;
 mod web_app;
 
 #[cfg(target_arch = "wasm32")]

@@ -21,7 +21,7 @@ gloo-timers = { version = "0.2.6", features = ["futures"] }
 js-sys = "0.3.61"
 game-common = { path = "../common" }
 getrandom = { version = "0.2.9", features = ["js"] }
-
+instant = "0.1.12"
 
 [build]
 target = "wasm-unknown-unknown"
