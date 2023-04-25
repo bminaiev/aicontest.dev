@@ -144,9 +144,10 @@ impl eframe::App for TemplateApp {
             }
             // TODO: show real fps
             let info = format!(
-                "iter={iter}\nfps={fps:.3}\nturn={cur_turn}/{max_turns}\n",
+                "iter={iter}\nfps={fps:.3}\nturn={cur_turn}/{max_turns}\nbuf_time={buf_time:?}\n",
                 iter = self.counter,
                 fps = self.counter as f64 / self.start.elapsed().as_secs_f64(),
+                buf_time = self.state_approximator.more_buffer(),
             );
 
             ui.label(RichText::new(info).font(FontId::proportional(25.0)));
@@ -247,8 +248,8 @@ fn draw_arrow(ui: &mut egui::Ui, from: Pos2, to: Pos2, color: egui::Color32) {
     let dir = to - from;
     let len = dir.length();
     let dir = dir / len;
-    let arrow_len = 10.0;
-    let arrow_width = 5.0;
+    let arrow_len = 5.0;
+    let arrow_width = 2.0;
     let arrow_start = to - dir * arrow_len;
     let arrow_dir = vec2(dir.y, -dir.x);
     let arrow_points = vec![
@@ -256,8 +257,12 @@ fn draw_arrow(ui: &mut egui::Ui, from: Pos2, to: Pos2, color: egui::Color32) {
         to,
         arrow_start - arrow_dir * arrow_width,
     ];
+    ui.painter().add(Shape::dashed_line(
+        &[from, to],
+        Stroke::new(1.0, color),
+        10.0,
+        5.0,
+    ));
     ui.painter()
-        .line_segment([from, to], Stroke::new(2.0, color));
-    ui.painter()
-        .add(Shape::line(arrow_points, Stroke::new(2.0, color)));
+        .add(Shape::line(arrow_points, Stroke::new(1.0, color)));
 }

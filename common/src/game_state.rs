@@ -21,7 +21,7 @@ pub struct Player {
     // TODO: contact info?
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Item {
     pub pos: Point,
     pub radius: i32,
