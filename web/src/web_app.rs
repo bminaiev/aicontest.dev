@@ -91,7 +91,7 @@ impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let (sender, receiver) = mpsc::unbounded::<StateWithTime>();
 
-        let server_url = std::env::var("SERVER_URL").unwrap_or("ws://127.0.0.1:7878".to_owned());
+        let server_url = std::option_env!("SERVER_URL").unwrap_or("ws://127.0.0.1:7878");
 
         let ctx = cc.egui_ctx.clone();
 

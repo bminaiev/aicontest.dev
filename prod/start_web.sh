@@ -1,3 +1,4 @@
 #!/bin/bash
 cd ../web
-nohup SERVER_URL=ws://188.166.195.142:7878 trunk serve --release --address 0.0.0.0 --ignore . &
+killall trunk
+SERVER_URL=ws://188.166.195.142:7878 nohup trunk serve --release --address 0.0.0.0 --ignore . > ../prod/web.log 2>&1  &
