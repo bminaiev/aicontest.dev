@@ -796,7 +796,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "game"
+name = "game-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rand",
+]
+
+[[package]]
+name = "game-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -808,14 +816,6 @@ dependencies = [
  "rand",
  "tokio",
  "tokio-tungstenite",
-]
-
-[[package]]
-name = "game-common"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "rand",
 ]
 
 [[package]]

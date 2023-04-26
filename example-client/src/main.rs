@@ -13,6 +13,8 @@ use anyhow::Result;
 pub struct Args {
     #[clap(long)]
     addr: Option<String>,
+    #[clap(long, default_value_t = 1)]
+    num_bots: usize,
 }
 
 const MY_LOGIN_PREFIX: &str = "basic-rust-";
@@ -63,12 +65,7 @@ async fn try_one_game(addr: &str, login: &str) -> Result<()> {
     }
 }
 
-#[tokio::main]
-pub async fn main() -> Result<()> {
-    env_logger::init();
-    log::info!("Starting client");
-    let args = Args::parse();
-    let addr = args.addr.unwrap_or(format!("127.0.0.1:7877"));
+async fn one_client(addr: String) {
     let login = format!("{}{}", MY_LOGIN_PREFIX, rand::random::<u8>());
     loop {
         match try_one_game(&addr, &login).await {
@@ -79,4 +76,21 @@ pub async fn main() -> Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+}
+
+#[tokio::main]
+pub async fn main() -> Result<()> {
+    env_logger::init();
+    log::info!("Starting client");
+    let args = Args::parse();
+
+    let addr = args.addr.unwrap_or(format!("188.166.195.142:7877"));
+    let mut handles = vec![];
+    for _ in 0..args.num_bots {
+        handles.push(tokio::spawn(one_client(addr.clone())));
+    }
+    for handle in handles {
+        handle.await?;
+    }
+    Ok(())
 }
