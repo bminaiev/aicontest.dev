@@ -1,4 +1,3 @@
 [build]
 target = "wasm32-unknown-unknown"
 rustflags = ""
-rustc-wrapper = "/home/borys/.cargo/bin/sccache"
