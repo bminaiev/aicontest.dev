@@ -5,39 +5,34 @@ use std::{
 };
 
 use egui::{pos2, vec2, Align2, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
-use futures::{
-    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    SinkExt, StreamExt,
-};
+use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use game_common::{
     game_state::{GameState, Player},
     point::Point,
 };
-use instant::{Duration, Instant, SystemTime};
+use instant::SystemTime;
 use wasm_bindgen::{
     prelude::{wasm_bindgen, Closure},
     JsCast,
 };
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::spawn_local;
 
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    value: f32,
     receiver: UnboundedReceiver<StateWithTime>,
     state_approximator: StateApproximator,
 
     counter: u64,
-    start: Instant,
     updates_got: u64,
+    fps_counter: FpsCounter,
 }
 
-use gloo_timers::future::TimeoutFuture;
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
 
-use crate::state_approximator::{StateApproximator, StateWithTime};
+use crate::{
+    fps_counter::FpsCounter,
+    state_approximator::{StateApproximator, StateWithTime},
+};
 
 #[wasm_bindgen]
 extern "C" {
@@ -52,7 +47,6 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<
 
     let onmessage_callback = Closure::wrap(Box::new({
         let sender = sender.clone();
-        let ctx = ctx.clone();
         move |e: MessageEvent| match e.data().dyn_into::<js_sys::JsString>() {
             Ok(data) => {
                 let message: String = data.to_string().into();
@@ -72,8 +66,8 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<
                     Err(err) => log(&format!("Error parsing state: {err:?}")),
                 }
             }
-            Err(err) => {
-                log("Received non-string message: {err:?}");
+            Err(_err) => {
+                log("Received non-string message");
             }
         }
     }) as Box<dyn FnMut(MessageEvent)>);
@@ -97,27 +91,24 @@ impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let (sender, receiver) = mpsc::unbounded::<StateWithTime>();
 
+        let server_url = std::env::var("SERVER_URL").unwrap_or("ws://127.0.0.1:7878".to_owned());
+
         let ctx = cc.egui_ctx.clone();
 
         spawn_local(async move {
-            let url = "ws://192.168.1.162:7878";
-
             reconnect(
-                url.to_owned(),
+                server_url.to_owned(),
                 Arc::new(sender.clone()),
                 Arc::new(ctx.clone()),
             );
         });
 
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
             receiver,
             state_approximator: StateApproximator::default(),
             counter: 0,
-            start: Instant::now(),
             updates_got: 0,
+            fps_counter: FpsCounter::new(),
         }
     }
 }
@@ -142,11 +133,12 @@ impl eframe::App for TemplateApp {
                 cur_turn = game_state.turn;
                 max_turns = game_state.max_turns;
             }
+            let fps = self.fps_counter.add_frame();
             // TODO: show real fps
             let info = format!(
-                "iter={iter}\nfps={fps:.3}\nturn={cur_turn}/{max_turns}\nbuf_time={buf_time:?}\n",
+                "iter={iter}\nfps={fps:.1}\nturn={cur_turn}/{max_turns}\nbuf_time={buf_time:?}\n",
                 iter = self.counter,
-                fps = self.counter as f64 / self.start.elapsed().as_secs_f64(),
+                fps = fps,
                 buf_time = self.state_approximator.more_buffer(),
             );
 
@@ -197,7 +189,7 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
     }
     {
         // draw items
-        for (id, item) in game_state.items.iter().enumerate() {
+        for item in game_state.items.iter() {
             let color = egui::Color32::LIGHT_BLUE;
             let center = conv_pt(item.pos);
             ui.painter()
@@ -219,7 +211,7 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
             let center = conv_pt(player.pos);
             ui.painter()
                 .circle_filled(center, player.radius as f32 * zoom, color);
-            draw_arrow(ui, center, conv_pt(player.target), color);
+            // draw_arrow(ui, center, conv_pt(player.target), color);
             // draw player id
             ui.painter().text(
                 center,

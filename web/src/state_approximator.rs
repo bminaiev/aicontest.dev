@@ -69,6 +69,11 @@ impl StateApproximator {
             return Some(self.states[0].state.clone());
         }
 
+        if self.states[0].timestamp > cur_time {
+            // hacky thing to make it start showing motion right away
+            self.states[0].timestamp = cur_time;
+        }
+
         let prev = &self.states[0];
         let next = &self.states[1];
         let delta = next

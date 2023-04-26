@@ -84,7 +84,7 @@ pub async fn main() -> Result<()> {
     log::info!("Starting client");
     let args = Args::parse();
 
-    let addr = args.addr.unwrap_or(format!("188.166.195.142:7877"));
+    let addr = args.addr.unwrap_or(format!("127.0.0.1:7877"));
     let mut handles = vec![];
     for _ in 0..args.num_bots {
         handles.push(tokio::spawn(one_client(addr.clone())));

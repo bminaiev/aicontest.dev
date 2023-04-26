@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::str::FromStr;
 
 use crate::consts::{
-    HEIGHT, MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, PLAYER_RADIUS, WIDTH,
+    MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, PLAYER_RADIUS, START_HEIGHT,
+    START_MAX_PLAYERS, START_WIDTH,
 };
 use crate::player_move::PlayerMove;
 use crate::point::Point;
@@ -142,14 +143,33 @@ impl GameState {
         if self.turn == self.max_turns {
             return NextTurn::FinalResults(GameResults::new(self));
         }
+        self.update_size();
         self.add_more_items();
         NextTurn::GameState(self)
+    }
+
+    fn update_size(&mut self) {
+        let scaling = self.scaling_coef().sqrt();
+        self.width = ((START_WIDTH as f64) * scaling).round() as i32;
+        self.height = ((START_HEIGHT as f64) * scaling).round() as i32;
+    }
+
+    fn calc_max_items(&self) -> usize {
+        ((MAX_ITEMS as f64) * self.scaling_coef()).round() as usize
+    }
+
+    fn scaling_coef(&self) -> f64 {
+        if self.players.len() < START_MAX_PLAYERS {
+            return 1.0;
+        }
+        (self.players.len() as f64) / (START_MAX_PLAYERS as f64)
     }
 
     fn add_more_items(&mut self) {
         let mut rng = thread_rng();
 
-        while self.items.len() < MAX_ITEMS {
+        let max_items = self.calc_max_items();
+        while self.items.len() < max_items {
             // TODO: make logic more interesting
             let r = rng.gen_range(MIN_ITEM_R..MAX_ITEM_R);
             let new_item = Item {
@@ -178,8 +198,8 @@ impl GameState {
 
     pub fn new() -> Self {
         let mut res = Self {
-            width: WIDTH,
-            height: HEIGHT,
+            width: START_WIDTH,
+            height: START_HEIGHT,
             turn: 0,
             max_turns: MAX_TURNS,
             players: vec![],

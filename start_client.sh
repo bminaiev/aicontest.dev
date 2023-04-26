@@ -1,2 +1,2 @@
 #!/bin/bash
-RUST_LOG=debug cargo run --bin example-client -- --num-bots 4
+RUST_LOG=debug cargo run --bin example-client -- --num-bots 20

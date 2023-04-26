@@ -1,5 +1,6 @@
+pub mod fps_counter;
 pub mod state_approximator;
-mod web_app;
+pub mod web_app;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {

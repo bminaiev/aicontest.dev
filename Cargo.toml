@@ -6,3 +6,9 @@ members = [
     "web",
     "common"
 ]
+
+[profile.release]
+debug = 1
+
+[profile.dev]
+debug = 1
