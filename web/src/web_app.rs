@@ -205,14 +205,33 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
         }
     }
     {
-        // draw players
-        for player in game_state.players.iter() {
-            let color = choose_player_color(player);
-            let center = conv_pt(player.pos);
-            ui.painter()
-                .circle_filled(center, player.radius as f32 * zoom, color);
-            // draw_arrow(ui, center, conv_pt(player.target), color);
-            // draw player id
+        draw_players(game_state, ui, zoom, conv_pt);
+    }
+}
+
+fn draw_players(
+    game_state: &GameState,
+    ui: &mut egui::Ui,
+    zoom: f32,
+    conv_pt: impl Fn(Point) -> Pos2,
+) {
+    let mut scores = game_state
+        .players
+        .iter()
+        .map(|p| p.score)
+        .collect::<Vec<_>>();
+    scores.sort();
+    scores.reverse();
+
+    let top5_score = std::cmp::max(1, *scores.get(4).unwrap_or(&0));
+
+    for player in game_state.players.iter() {
+        let color = choose_player_color(player);
+        let center = conv_pt(player.pos);
+        ui.painter()
+            .circle_filled(center, player.radius as f32 * zoom, color);
+        // draw_arrow(ui, center, conv_pt(player.target), color);
+        if player.score >= top5_score {
             ui.painter().text(
                 center,
                 Align2::LEFT_CENTER,
