@@ -8,7 +8,7 @@ pub const MAX_ITEM_R: i32 = 100;
 pub const PLAYER_RADIUS: i32 = 20;
 
 pub const START_WIDTH: i32 = 2000;
-pub const START_HEIGHT: i32 = 1200;
+pub const START_HEIGHT: i32 = 1500;
 // if more players play, field becomes bigger
 pub const START_MAX_PLAYERS: usize = 5;
 

@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use eframe::epaint::ahash::HashMap;
 use egui::{pos2, vec2, Align2, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
@@ -18,13 +19,14 @@ use wasm_bindgen::{
 };
 use wasm_bindgen_futures::spawn_local;
 
-pub struct TemplateApp {
+pub struct App {
     receiver: UnboundedReceiver<StateWithTime>,
     state_approximator: StateApproximator,
-
     counter: u64,
     updates_got: u64,
     fps_counter: FpsCounter,
+    show_users: HashMap<String, bool>,
+    show_top5: bool,
 }
 
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
@@ -86,7 +88,7 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<
     onclose_callback.forget();
 }
 
-impl TemplateApp {
+impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let (sender, receiver) = mpsc::unbounded::<StateWithTime>();
@@ -109,11 +111,13 @@ impl TemplateApp {
             counter: 0,
             updates_got: 0,
             fps_counter: FpsCounter::new(),
+            show_users: HashMap::default(),
+            show_top5: true,
         }
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for App {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -125,26 +129,51 @@ impl eframe::App for TemplateApp {
             self.updates_got += 1;
         }
 
+        let game_state = self.state_approximator.get_state();
+
+        let full_width = ctx.available_rect().width();
+        let side_width = full_width * 0.15;
+
+        egui::SidePanel::left("side_panel")
+            .exact_width(side_width)
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                let fps = self.fps_counter.add_frame();
+
+                if let Some(game_state) = &game_state {
+                    ui.label(format!("turn={}/{}", game_state.turn, game_state.max_turns));
+                    ui.label(format!("#players={}", game_state.players.len()));
+                }
+                ui.label(format!("fps={:.1}", fps));
+                ui.checkbox(&mut self.show_top5, "Show top-5 players");
+                ui.separator();
+
+                ui.vertical(|ui| {
+                    if let Some(game_state) = &game_state {
+                        let mut players = game_state.players.clone();
+                        players.sort_by_key(|player| -player.score);
+                        for player in players.iter() {
+                            let mut value = *self.show_users.get(&player.name).unwrap_or(&false);
+                            let color = choose_player_color(player);
+                            let text = RichText::new(format!(
+                                "[score = {}] {}",
+                                player.score, player.name
+                            ))
+                            .color(color);
+                            if ui.checkbox(&mut value, text).clicked() {
+                                self.show_users.insert(player.name.clone(), value);
+                            }
+                        }
+                    }
+                });
+
+                egui::warn_if_debug_build(ui);
+            });
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut cur_turn = 0;
-            let mut max_turns = 0;
-            if let Some(game_state) = self.state_approximator.get_state() {
-                draw_state(ui, &game_state);
-                cur_turn = game_state.turn;
-                max_turns = game_state.max_turns;
+            if let Some(game_state) = &game_state {
+                draw_state(self, ui, game_state);
             }
-            let fps = self.fps_counter.add_frame();
-            // TODO: show real fps
-            let info = format!(
-                "iter={iter}\nfps={fps:.1}\nturn={cur_turn}/{max_turns}\nbuf_time={buf_time:?}\n",
-                iter = self.counter,
-                fps = fps,
-                buf_time = self.state_approximator.more_buffer(),
-            );
-
-            ui.label(RichText::new(info).font(FontId::proportional(25.0)));
-
-            egui::warn_if_debug_build(ui);
         });
 
         // egui::CentralPanel::default().show(&ctx, |ui| {
@@ -156,16 +185,10 @@ impl eframe::App for TemplateApp {
         //         // last_msg = self.last_msg
         //     ));
         // });
-
-        // egui::SidePanel::left("side_panel").show(ctx, |ui| {
-        //     ui.horizontal(|ui| {
-
-        //     });
-        // });
     }
 }
 
-fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
+fn draw_state(app: &App, ui: &mut egui::Ui, game_state: &GameState) {
     let available_rect = ui.available_rect_before_wrap();
     let zoom_x = available_rect.width() / game_state.width as f32;
     let zoom_y = available_rect.height() / game_state.height as f32;
@@ -205,11 +228,12 @@ fn draw_state(ui: &mut egui::Ui, game_state: &GameState) {
         }
     }
     {
-        draw_players(game_state, ui, zoom, conv_pt);
+        draw_players(app, game_state, ui, zoom, conv_pt);
     }
 }
 
 fn draw_players(
+    app: &App,
     game_state: &GameState,
     ui: &mut egui::Ui,
     zoom: f32,
@@ -231,12 +255,24 @@ fn draw_players(
         ui.painter()
             .circle_filled(center, player.radius as f32 * zoom, color);
         // draw_arrow(ui, center, conv_pt(player.target), color);
-        if player.score >= top5_score {
+
+        let mut show_it = *app.show_users.get(&player.name).unwrap_or(&false);
+        if app.show_top5 && player.score >= top5_score {
+            show_it = true;
+        }
+
+        if show_it {
             ui.painter().text(
-                center,
+                conv_pt(
+                    player.pos
+                        + Point {
+                            x: player.radius,
+                            y: 0,
+                        },
+                ),
                 Align2::LEFT_CENTER,
                 format!("{} [score={}]", player.name, player.score),
-                FontId::monospace(10.0),
+                FontId::monospace(13.0),
                 egui::Color32::BLACK,
             );
         }

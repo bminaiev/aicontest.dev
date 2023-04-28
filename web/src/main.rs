@@ -16,7 +16,7 @@ fn main() {
         eframe::start_web(
             "the_canvas_id", // hardcode it
             web_options,
-            Box::new(|cc| Box::new(web_app::TemplateApp::new(cc))),
+            Box::new(|cc| Box::new(web_app::App::new(cc))),
         )
         .await
         .expect("failed to start eframe");
