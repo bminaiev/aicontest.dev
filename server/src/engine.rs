@@ -6,10 +6,13 @@ use game_common::consts::TURN_WAIT_TIME;
 use game_common::game_state::{self, GameState};
 use game_common::player_move::PlayerMove;
 
+use crate::top_results::TopResults;
+
 pub async fn run(
     tx_game_states: watch::Sender<Option<GameState>>,
     mut rx_moves: mpsc::Receiver<PlayerMove>,
     games_dir: &str,
+    top_results: &mut TopResults,
 ) -> anyhow::Result<()> {
     log::info!("Running games...");
     create_dir_all(games_dir).await?;
@@ -38,6 +41,7 @@ pub async fn run(
                     for player in results.players.iter() {
                         log::info!("{}: {}", player.name, player.score);
                     }
+                    top_results.add_results(results).await?;
                     break;
                 }
             }

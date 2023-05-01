@@ -5,6 +5,7 @@ use clap::Parser;
 pub mod connection;
 pub mod engine;
 pub mod password_manager;
+pub mod top_results;
 
 use game_common::{
     consts::MAX_LOGIN_LEN, game_state::GameState, player_move::PlayerMove, point::Point,
@@ -15,7 +16,7 @@ use tokio::{
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use crate::{connection::Connection, password_manager::PasswordManager};
+use crate::{connection::Connection, password_manager::PasswordManager, top_results::TopResults};
 use anyhow::Result;
 use futures_util::{stream::StreamExt, SinkExt};
 
@@ -210,13 +211,16 @@ pub async fn main() -> Result<()> {
     let password_manager =
         Arc::new(PasswordManager::new(format!("{base_dir}/passwords.txt")).await?);
     let games_dir = format!("{base_dir}/games");
+    let mut top_results = TopResults::new(format!("{base_dir}/top_results.txt")).await?;
 
     let tcp_port = args.tcp_port.unwrap_or(DEFAULT_TCP_PORT);
     let web_socket_port = args.websocket_port.unwrap_or(DEFAULT_WEB_SOCKET_PORT);
 
     let (tx_game_states, rx_game_states) = watch::channel::<Option<GameState>>(None);
     let (tx_moves, rx_moves) = mpsc::channel::<PlayerMove>(1024);
-    tokio::spawn(async move { engine::run(tx_game_states, rx_moves, &games_dir).await });
+    tokio::spawn(async move {
+        engine::run(tx_game_states, rx_moves, &games_dir, &mut top_results).await
+    });
 
     let tcp_server = tokio::spawn({
         let rx_game_states = rx_game_states.clone();

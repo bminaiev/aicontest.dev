@@ -55,13 +55,17 @@ pub struct GameState {
 
 pub struct GameResults {
     pub players: Vec<Player>,
+    pub game_id: String,
 }
 
 impl GameResults {
     pub fn new(state: GameState) -> Self {
         let mut players = state.players;
         players.sort_by_key(|player| -player.score);
-        Self { players }
+        Self {
+            players,
+            game_id: state.game_id,
+        }
     }
 }
 
