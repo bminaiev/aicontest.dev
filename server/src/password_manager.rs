@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path};
 
+use game_common::consts::MAX_PASSWORD_LEN;
 use tokio::{
     fs::{create_dir_all, File, OpenOptions},
     io::{AsyncReadExt, AsyncWriteExt},
@@ -45,13 +46,11 @@ impl PasswordManager {
         password: &str,
         ip: &str,
     ) -> anyhow::Result<()> {
-        log::info!("Checking password for {} from {}", login, ip);
         if password == "GO" {
             anyhow::bail!("Please don't use 'GO' as your password!");
         }
         let expected_password = self.passwords.lock().await.get(login).cloned();
         if let Some(expected_password) = expected_password {
-            log::info!("Existing password...");
             if expected_password == password {
                 return Ok(());
             } else {
@@ -60,18 +59,25 @@ impl PasswordManager {
                 ));
             }
         } else {
-            log::info!("Inserting new password");
+            if password.len() > MAX_PASSWORD_LEN {
+                anyhow::bail!(
+                    "Password is too long. MAX_PASSWORD_LEN = {}",
+                    MAX_PASSWORD_LEN
+                );
+            }
             self.passwords
                 .lock()
                 .await
                 .insert(login.to_string(), password.to_string());
-            log::info!("Done, saving to file...");
             let mut guard = self.file.lock().await;
             guard
                 .write_all(format!("{login} {ip} {password}\n").as_bytes())
                 .await?;
             guard.flush().await?;
-            log::info!("Updated passwords file");
+            log::info!(
+                "Updated passwords file, total {} passwords.",
+                self.passwords.lock().await.len()
+            );
             Ok(())
         }
     }

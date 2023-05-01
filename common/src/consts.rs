@@ -16,3 +16,4 @@ pub const MAX_TURNS: usize = 600;
 pub const TURN_WAIT_TIME: Duration = Duration::from_millis(500);
 
 pub const MAX_LOGIN_LEN: usize = 20;
+pub const MAX_PASSWORD_LEN: usize = 100;
