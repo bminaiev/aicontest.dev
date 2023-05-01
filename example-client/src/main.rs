@@ -42,6 +42,7 @@ async fn try_one_game(addr: &str, login: &str) -> Result<()> {
     conn.read_expect("HELLO").await?;
     conn.write("PLAY").await?;
     conn.write(login).await?;
+    let mut last_seen_turn = usize::MAX;
     loop {
         let mut state = vec![];
         loop {
@@ -54,6 +55,11 @@ async fn try_one_game(addr: &str, login: &str) -> Result<()> {
         }
         match GameState::from_string(&state.join(" ")) {
             Ok(game_state) => {
+                let turn = game_state.turn;
+                if turn < last_seen_turn {
+                    log::info!("New game started. Current turn: {turn}");
+                }
+                last_seen_turn = turn;
                 let my_move = best_move(&game_state);
                 conn.write(&format!("GO {} {}", my_move.target.x, my_move.target.y))
                     .await?;

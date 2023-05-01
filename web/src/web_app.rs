@@ -6,6 +6,7 @@ use std::{
 
 use eframe::epaint::ahash::HashMap;
 use egui::{pos2, vec2, Align2, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
+use egui_extras::{Column, TableBuilder};
 use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use game_common::{
@@ -19,6 +20,12 @@ use wasm_bindgen::{
 };
 use wasm_bindgen_futures::spawn_local;
 
+#[derive(PartialEq, Eq)]
+enum SortBy {
+    Score,
+    Name,
+}
+
 pub struct App {
     receiver: UnboundedReceiver<StateWithTime>,
     state_approximator: StateApproximator,
@@ -27,6 +34,7 @@ pub struct App {
     fps_counter: FpsCounter,
     show_users: HashMap<String, bool>,
     show_top5: bool,
+    sort_players_by: SortBy,
 }
 
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
@@ -113,6 +121,7 @@ impl App {
             fps_counter: FpsCounter::new(),
             show_users: HashMap::default(),
             show_top5: true,
+            sort_players_by: SortBy::Score,
         }
     }
 }
@@ -150,20 +159,22 @@ impl eframe::App for App {
 
                 ui.vertical(|ui| {
                     if let Some(game_state) = &game_state {
-                        let mut players = game_state.players.clone();
-                        players.sort_by_key(|player| -player.score);
-                        for player in players.iter() {
-                            let mut value = *self.show_users.get(&player.name).unwrap_or(&false);
-                            let color = choose_player_color(player);
-                            let text = RichText::new(format!(
-                                "[score = {}] {}",
-                                player.score, player.name
-                            ))
-                            .color(color);
-                            if ui.checkbox(&mut value, text).clicked() {
-                                self.show_users.insert(player.name.clone(), value);
-                            }
-                        }
+                        show_ratings(self, ui, game_state.players.clone());
+
+                        // let mut players = game_state.players.clone();
+                        // players.sort_by_key(|player| -player.score);
+                        // for player in players.iter() {
+                        //     let mut value = *self.show_users.get(&player.name).unwrap_or(&false);
+                        //     let color = choose_player_color(player);
+                        //     let text = RichText::new(format!(
+                        //         "[score = {}] {}",
+                        //         player.score, player.name
+                        //     ))
+                        //     .color(color);
+                        //     if ui.checkbox(&mut value, text).clicked() {
+                        //         self.show_users.insert(player.name.clone(), value);
+                        //     }
+                        // }
                     }
                 });
 
@@ -186,6 +197,89 @@ impl eframe::App for App {
         //     ));
         // });
     }
+}
+
+fn calc_places(players: &[Player]) -> Vec<(Player, String)> {
+    let mut res = vec![];
+    let mut i = 0;
+    while i != players.len() {
+        let mut j = i;
+        while j != players.len() && players[j].score == players[i].score {
+            j += 1;
+        }
+        let place = if i + 1 == j {
+            j.to_string()
+        } else {
+            format!("{}-{}", i + 1, j)
+        };
+        while i != j {
+            res.push((players[i].clone(), place.clone()));
+            i += 1;
+        }
+    }
+    res
+}
+
+fn show_ratings(app: &mut App, ui: &mut egui::Ui, mut players: Vec<Player>) {
+    players.sort_by_key(|player| -player.score);
+    let mut players = calc_places(&players);
+
+    ui.horizontal(|ui| {
+        ui.label("Sort by:");
+        ui.radio_value(&mut app.sort_players_by, SortBy::Score, "Score");
+        ui.radio_value(&mut app.sort_players_by, SortBy::Name, "Name");
+    });
+
+    match app.sort_players_by {
+        SortBy::Score => {}
+        SortBy::Name => players.sort_by_key(|(player, _)| player.name.clone()),
+    }
+
+    let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
+    let table = TableBuilder::new(ui)
+        .striped(true)
+        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        .column(Column::auto())
+        .column(Column::auto())
+        .column(Column::auto())
+        .column(Column::auto());
+
+    table
+        .header(20.0, |mut header| {
+            header.col(|ui| {
+                ui.strong("");
+            });
+            header.col(|ui| {
+                ui.strong("#");
+            });
+            header.col(|ui| {
+                ui.strong("Name");
+            });
+            header.col(|ui| {
+                ui.strong("Score");
+            });
+        })
+        .body(|body| {
+            body.rows(text_height, players.len(), |row_index, mut row| {
+                let (player, place) = &players[row_index];
+                let color = choose_player_color(player);
+                row.col(|ui| {
+                    let mut value = *app.show_users.get(&player.name).unwrap_or(&false);
+                    if ui.checkbox(&mut value, "").clicked() {
+                        app.show_users.insert(player.name.clone(), value);
+                    }
+                });
+                row.col(|ui| {
+                    ui.label(place);
+                });
+                row.col(|ui| {
+                    ui.label(RichText::new(&player.name).color(color));
+                });
+                row.col(|ui| {
+                    ui.label(player.score.to_string());
+                });
+            });
+        });
 }
 
 fn draw_state(app: &App, ui: &mut egui::Ui, game_state: &GameState) {
