@@ -34,14 +34,14 @@ fn best_move(game_state: &GameState) -> PlayerMove {
     }
 }
 
-async fn try_one_game(addr: &str, login: &str) -> Result<()> {
+async fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
     log::info!("Trying to connect to {addr}");
     let stream = TcpStream::connect(addr.clone()).await?;
     let mut conn = Connection::new(stream, SocketAddr::from_str(&addr).unwrap());
 
     conn.read_expect("HELLO").await?;
     conn.write("PLAY").await?;
-    conn.write(login).await?;
+    conn.write(format!("{login} {password}")).await?;
     let mut last_seen_turn = usize::MAX;
     loop {
         let mut state = vec![];
@@ -73,8 +73,9 @@ async fn try_one_game(addr: &str, login: &str) -> Result<()> {
 
 async fn one_client(addr: String) {
     let login = format!("{}{}", MY_LOGIN_PREFIX, rand::random::<u8>());
+    let password = "very-secure-password";
     loop {
-        match try_one_game(&addr, &login).await {
+        match try_one_game(&addr, &login, &password).await {
             Ok(()) => {}
             Err(err) => {
                 log::error!("Connection finished with error: {}", err);

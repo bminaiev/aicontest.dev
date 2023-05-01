@@ -1,16 +1,21 @@
+use std::sync::Arc;
+
 use clap::Parser;
 
 pub mod connection;
 pub mod engine;
+pub mod password_manager;
 
-use game_common::{game_state::GameState, player_move::PlayerMove, point::Point};
+use game_common::{
+    consts::MAX_LOGIN_LEN, game_state::GameState, player_move::PlayerMove, point::Point,
+};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, watch},
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use crate::connection::Connection;
+use crate::{connection::Connection, password_manager::PasswordManager};
 use anyhow::Result;
 use futures_util::{stream::StreamExt, SinkExt};
 
@@ -20,17 +25,41 @@ pub struct Args {
     tcp_port: Option<u16>,
     #[clap(long)]
     websocket_port: Option<u16>,
+    #[clap(long)]
+    base_dir: Option<String>,
+}
+
+fn validate_login(login: &str) -> Result<()> {
+    if login.len() > MAX_LOGIN_LEN {
+        return Err(anyhow::anyhow!(
+            "Login is too long. MAX_LOGIN_LEN = {}",
+            MAX_LOGIN_LEN
+        ));
+    }
+    if !login.is_ascii() {
+        return Err(anyhow::anyhow!("Login must be ASCII"));
+    }
+    Ok(())
 }
 
 async fn handle_tcp_play(
     mut conn: Connection,
     mut rx_game_stats: watch::Receiver<Option<GameState>>,
     tx_moves: mpsc::Sender<PlayerMove>,
+    password_manager: Arc<PasswordManager>,
 ) -> Result<()> {
     let login = conn.read_token().await?;
-    // TODO: validation
     log::info!("Got login: {login}");
-    // TODO: better auth.
+    validate_login(&login)?;
+    let password = conn.read_token().await?;
+    log::debug!("Got password: {password}");
+    if let Err(err) = password_manager
+        .check_password(&login, &password, &conn.addr.to_string())
+        .await
+    {
+        conn.write(&format!("{:?}", err)).await?;
+        return Err(err);
+    }
     let mut state;
     loop {
         rx_game_stats.changed().await?;
@@ -81,11 +110,11 @@ async fn handle_tcp_watch(
     }
 }
 
-// TODO: watch/play
 async fn handle_tcp_connection(
     mut conn: Connection,
     rx_game_states: watch::Receiver<Option<GameState>>,
     tx_moves: mpsc::Sender<PlayerMove>,
+    password_manager: Arc<PasswordManager>,
 ) -> Result<()> {
     conn.write("HELLO").await?;
     loop {
@@ -95,7 +124,7 @@ async fn handle_tcp_connection(
             break;
         }
         if cmd_type == "PLAY" {
-            handle_tcp_play(conn, rx_game_states, tx_moves).await?;
+            handle_tcp_play(conn, rx_game_states, tx_moves, password_manager).await?;
             break;
         }
         conn.write(format!("Expected 'WATCH' or 'PLAY', got '{}'", cmd_type))
@@ -108,6 +137,7 @@ async fn run_tcp_server(
     port: u16,
     rx_game_states: watch::Receiver<Option<GameState>>,
     tx_moves: mpsc::Sender<PlayerMove>,
+    password_manager: Arc<PasswordManager>,
 ) {
     let listener = TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
     log::info!("Listening to port {port}");
@@ -118,11 +148,13 @@ async fn run_tcp_server(
         log::info!("New connection from {addr:?}");
         let rx_game_states = rx_game_states.clone();
         let tx_moves = tx_moves.clone();
+        let password_manager = password_manager.clone();
         tokio::spawn(async move {
             match handle_tcp_connection(
                 Connection::new(tcp_stream, addr.clone()),
                 rx_game_states,
                 tx_moves,
+                password_manager,
             )
             .await
             {
@@ -174,16 +206,21 @@ pub async fn main() -> Result<()> {
     log::info!("Starting server");
     let args = Args::parse();
 
+    let base_dir = args.base_dir.unwrap_or("data".to_owned());
+    let password_manager =
+        Arc::new(PasswordManager::new(format!("{base_dir}/passwords.txt")).await?);
+    let games_dir = format!("{base_dir}/games");
+
     let tcp_port = args.tcp_port.unwrap_or(DEFAULT_TCP_PORT);
     let web_socket_port = args.websocket_port.unwrap_or(DEFAULT_WEB_SOCKET_PORT);
 
     let (tx_game_states, rx_game_states) = watch::channel::<Option<GameState>>(None);
     let (tx_moves, rx_moves) = mpsc::channel::<PlayerMove>(1024);
-    tokio::spawn(async move { engine::run(tx_game_states, rx_moves).await });
+    tokio::spawn(async move { engine::run(tx_game_states, rx_moves, &games_dir).await });
 
     let tcp_server = tokio::spawn({
         let rx_game_states = rx_game_states.clone();
-        async move { run_tcp_server(tcp_port, rx_game_states, tx_moves).await }
+        async move { run_tcp_server(tcp_port, rx_game_states, tx_moves, password_manager).await }
     });
 
     let websockets_server =

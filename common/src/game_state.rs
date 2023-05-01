@@ -50,6 +50,7 @@ pub struct GameState {
     pub max_turns: usize,
     pub players: Vec<Player>,
     pub items: Vec<Item>,
+    pub game_id: String,
 }
 
 pub struct GameResults {
@@ -196,7 +197,7 @@ impl GameState {
         Point { x, y }
     }
 
-    pub fn new() -> Self {
+    pub fn new(game_id: &str) -> Self {
         let mut res = Self {
             width: START_WIDTH,
             height: START_HEIGHT,
@@ -204,6 +205,7 @@ impl GameState {
             max_turns: MAX_TURNS,
             players: vec![],
             items: vec![],
+            game_id: game_id.to_owned(),
         };
         res.add_more_items();
         res
@@ -212,11 +214,12 @@ impl GameState {
     pub fn to_string(&self) -> String {
         let mut res = String::new();
         res += &format!(
-            "TURN {turn} {max_turns} {width} {height}\n",
+            "TURN {turn} {max_turns} {width} {height} {game_id}\n",
             turn = self.turn,
             max_turns = self.max_turns,
             width = self.width,
             height = self.height,
+            game_id = self.game_id,
         );
         res += &format!("{}\n", self.players.len());
         for player in self.players.iter() {
@@ -256,6 +259,7 @@ impl GameState {
         let max_turns = tokens.next("max_turn")?;
         let width = tokens.next("width")?;
         let height = tokens.next("height")?;
+        let game_id = tokens.next("game_id")?;
         let mut res = Self {
             width,
             height,
@@ -263,6 +267,7 @@ impl GameState {
             max_turns,
             players: vec![],
             items: vec![],
+            game_id,
         };
         let num_players = tokens.next("num_players")?;
         for _ in 0..num_players {

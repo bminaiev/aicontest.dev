@@ -5,9 +5,12 @@ use std::{
 };
 
 use eframe::epaint::ahash::HashMap;
-use egui::{pos2, vec2, Align2, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
+use egui::{pos2, vec2, Align2, Color32, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
 use egui_extras::{Column, TableBuilder};
-use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use futures::{
+    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    SinkExt,
+};
 
 use game_common::{
     game_state::{GameState, Player},
@@ -27,7 +30,7 @@ enum SortBy {
 }
 
 pub struct App {
-    receiver: UnboundedReceiver<StateWithTime>,
+    receiver: UnboundedReceiver<Option<StateWithTime>>,
     state_approximator: StateApproximator,
     counter: u64,
     updates_got: u64,
@@ -35,6 +38,8 @@ pub struct App {
     show_users: HashMap<String, bool>,
     show_top5: bool,
     sort_players_by: SortBy,
+    server_url: String,
+    connected: bool,
 }
 
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
@@ -50,7 +55,7 @@ extern "C" {
     fn log(s: &str);
 }
 
-fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<Context>) {
+fn reconnect(url: String, sender: Arc<UnboundedSender<Option<StateWithTime>>>, ctx: Arc<Context>) {
     log("Connection closed, reconnecting...");
 
     let ws = WebSocket::new(&url).unwrap();
@@ -66,7 +71,7 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<
                             state,
                             timestamp: SystemTime::now(),
                         };
-                        match sender.unbounded_send(state) {
+                        match sender.unbounded_send(Some(state)) {
                             Ok(()) => {}
                             Err(err) => {
                                 log(&format!("Error sending message: {err:?}"));
@@ -86,6 +91,9 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<
 
     let onclose_callback = Closure::wrap(Box::new(move |_: CloseEvent| {
         // TODO: wait a bit before reconnecting
+        if let Err(err) = sender.unbounded_send(None) {
+            log(&format!("Error: {err:?}"))
+        }
         reconnect((*url).clone(), sender.clone(), ctx.clone());
     }) as Box<dyn FnMut(CloseEvent)>);
 
@@ -99,7 +107,7 @@ fn reconnect(url: String, sender: Arc<UnboundedSender<StateWithTime>>, ctx: Arc<
 impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let (sender, receiver) = mpsc::unbounded::<StateWithTime>();
+        let (sender, receiver) = mpsc::unbounded::<Option<StateWithTime>>();
 
         let server_url = std::option_env!("SERVER_URL").unwrap_or("ws://127.0.0.1:7878");
 
@@ -122,6 +130,8 @@ impl App {
             show_users: HashMap::default(),
             show_top5: true,
             sort_players_by: SortBy::Score,
+            server_url: server_url.to_owned(),
+            connected: false,
         }
     }
 }
@@ -134,8 +144,13 @@ impl eframe::App for App {
         ctx.request_repaint();
         // ctx.request_repaint_after(Duration::from_millis(1000 / 60));
         while let Ok(Some(state)) = self.receiver.try_next() {
-            self.state_approximator.add_state(state);
-            self.updates_got += 1;
+            if let Some(state) = state {
+                self.connected = true;
+                self.state_approximator.add_state(state);
+                self.updates_got += 1;
+            } else {
+                self.connected = false;
+            }
         }
 
         let game_state = self.state_approximator.get_state();
@@ -152,6 +167,12 @@ impl eframe::App for App {
                 if let Some(game_state) = &game_state {
                     ui.label(format!("turn={}/{}", game_state.turn, game_state.max_turns));
                     ui.label(format!("#players={}", game_state.players.len()));
+                }
+                if !self.connected {
+                    ui.label(
+                        RichText::new(format!("Trying to connect to {}...", self.server_url))
+                            .color(Color32::RED),
+                    );
                 }
                 ui.label(format!("fps={:.1}", fps));
                 ui.checkbox(&mut self.show_top5, "Show top-5 players");

@@ -129,6 +129,7 @@ impl StateApproximator {
             max_turns: prev.state.max_turns,
             players,
             items,
+            game_id: prev.state.game_id.clone(),
         };
         return Some(fake_state);
     }
