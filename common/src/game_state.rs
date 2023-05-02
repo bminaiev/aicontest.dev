@@ -346,7 +346,7 @@ impl GameState {
                 name: player_move.name,
                 pos,
                 speed: Point::ZERO,
-                target: pos,
+                target: player_move.target,
                 score: 0,
                 radius,
             });
