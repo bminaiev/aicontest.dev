@@ -109,28 +109,32 @@ impl TokenReader {
     }
 }
 
+pub fn next_turn_player_state(player: &mut Player, width: i32, height: i32) {
+    let acc = player.target - player.pos;
+    let acc = acc.scale(MAX_ACC);
+    player.speed += acc;
+    if player.speed.len() > MAX_SPEED {
+        player.speed = player.speed.scale(MAX_SPEED);
+    }
+    player.pos += player.speed;
+    clamp(
+        &mut player.pos.x,
+        &mut player.speed.x,
+        player.radius,
+        width - player.radius,
+    );
+    clamp(
+        &mut player.pos.y,
+        &mut player.speed.y,
+        player.radius,
+        height - player.radius,
+    );
+}
+
 impl GameState {
     pub fn next_turn(mut self) -> NextTurn {
         for player in self.players.iter_mut() {
-            let acc = player.target - player.pos;
-            let acc = acc.scale(MAX_ACC);
-            player.speed += acc;
-            if player.speed.len() > MAX_SPEED {
-                player.speed = player.speed.scale(MAX_SPEED);
-            }
-            player.pos += player.speed;
-            clamp(
-                &mut player.pos.x,
-                &mut player.speed.x,
-                player.radius,
-                self.width - player.radius,
-            );
-            clamp(
-                &mut player.pos.y,
-                &mut player.speed.y,
-                player.radius,
-                self.height - player.radius,
-            );
+            next_turn_player_state(player, self.width, self.height);
         }
         let mut ids: Vec<_> = (0..self.players.len()).collect();
         let mut rng = thread_rng();
