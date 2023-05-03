@@ -20,6 +20,10 @@ server {
 
     server_name aicontest.dev www.aicontest.dev;
 
+    location /top_results.txt {
+        alias /mnt/volume_fra1_01/data/top_results.txt;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8080/;
     }
