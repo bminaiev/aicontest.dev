@@ -21,6 +21,7 @@ server {
     server_name aicontest.dev www.aicontest.dev;
 
     location /top_results.txt {
+	add_header Access-Control-Allow-Origin *;
         alias /mnt/volume_fra1_01/data/top_results.txt;
     }
 
