@@ -10,6 +10,9 @@ the item is removed from the field and the player's score is increased by one.
 
 You can see the current game in real-time: https://aicontest.dev/
 
+![image](https://user-images.githubusercontent.com/2011126/236305046-41a362c5-cb8c-4bae-9722-865cbf47f3dc.png)
+
+
 # Navigating through the field
 
 The game consists of **600** moves. Each move roughly takes **0.5s**. Each player has position **(x, y)** and current speed **(vx, vy)**. **You can't instantly change the speed direction!** On each turn you can specify the target position **(target_x, target_y)**. The new position and new speed for the next turn are calculated like this:
@@ -33,7 +36,9 @@ Your program should send **PLAY** on the first line.
 On the second line you should send two words **[LOGIN] [PASSWORD]**. You can use any **[LOGIN]** which is not used yet.
 
 ```
-Please don't use a password, which you use somewhere else. Just generate a new random password. Passwords are stored in plaintext on the server. You need to use the same password every time you connect to the server.
+Please don't use a password, which you use somewhere else. Just generate a new random password. 
+Passwords are stored in plaintext on the server. You need to use the same password 
+every time you connect to the server.
 ```
 
 After that server sends the current state of the game using this format:
