@@ -29,8 +29,6 @@ enum SortBy {
 pub struct App {
     receiver: UnboundedReceiver<Option<StateWithTime>>,
     state_approximator: StateApproximator,
-    counter: u64,
-    updates_got: u64,
     fps_counter: FpsCounter,
     show_users: HashMap<String, bool>,
     show_top5: bool,
@@ -121,8 +119,6 @@ impl App {
         Self {
             receiver,
             state_approximator: StateApproximator::default(),
-            counter: 0,
-            updates_got: 0,
             fps_counter: FpsCounter::new(),
             show_users: HashMap::default(),
             show_top5: true,
@@ -134,17 +130,12 @@ impl App {
 }
 
 impl eframe::App for App {
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.counter += 1;
         ctx.request_repaint();
-        // ctx.request_repaint_after(Duration::from_millis(1000 / 60));
         while let Ok(Some(state)) = self.receiver.try_next() {
             if let Some(state) = state {
                 self.connected = true;
                 self.state_approximator.add_state(state);
-                self.updates_got += 1;
             } else {
                 self.connected = false;
             }
@@ -161,9 +152,17 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 let fps = self.fps_counter.add_frame();
 
+                ui.hyperlink_to(
+                    "README",
+                    "https://github.com/bminaiev/aicontest.dev/blob/master/README.md",
+                );
+
                 if let Some(game_state) = &game_state {
-                    ui.label(format!("turn={}/{}", game_state.turn, game_state.max_turns));
-                    ui.label(format!("#players={}", game_state.players.len()));
+                    ui.label(format!(
+                        "turn: {}/{}",
+                        game_state.turn, game_state.max_turns
+                    ));
+                    ui.label(format!("#players: {}", game_state.players.len()));
                 }
                 if !self.connected {
                     ui.label(
@@ -171,7 +170,7 @@ impl eframe::App for App {
                             .color(Color32::RED),
                     );
                 }
-                ui.label(format!("fps={:.1}", fps));
+                ui.label(format!("fps: {:.1}", fps));
                 ui.checkbox(&mut self.show_top5, "Show top-5 players");
                 ui.separator();
 
