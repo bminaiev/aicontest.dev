@@ -110,3 +110,4 @@ END_STATE
 - Please do not hardcode the size of the field. It could change during the game based on the number of players.
 - We ask for **(target_x, target_y)** instead of **(ax, ay)** to make it possible to play even if the latency to the server is bigger than one turn time. If you don't send a new target, the target from the previous turn is used, which could be a reasonable choice.
 - Sometimes we will restart the server, consider adding a reconnection logic to your program. Please sleep for a couple of seconds before reconnection.
+- **(0, 0)** corresponds to the top-left corner. **(WIDTH, 0)** corresponds to the top-right corner.
