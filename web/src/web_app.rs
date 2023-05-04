@@ -7,10 +7,7 @@ use std::{
 use eframe::epaint::ahash::HashMap;
 use egui::{pos2, vec2, Align2, Color32, Context, FontId, Pos2, RichText, Rounding, Shape, Stroke};
 use egui_extras::{Column, TableBuilder};
-use futures::{
-    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    SinkExt,
-};
+use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use game_common::{
     game_state::{GameState, Player},
@@ -181,21 +178,6 @@ impl eframe::App for App {
                 ui.vertical(|ui| {
                     if let Some(game_state) = &game_state {
                         show_ratings(self, ui, game_state.players.clone());
-
-                        // let mut players = game_state.players.clone();
-                        // players.sort_by_key(|player| -player.score);
-                        // for player in players.iter() {
-                        //     let mut value = *self.show_users.get(&player.name).unwrap_or(&false);
-                        //     let color = choose_player_color(player);
-                        //     let text = RichText::new(format!(
-                        //         "[score = {}] {}",
-                        //         player.score, player.name
-                        //     ))
-                        //     .color(color);
-                        //     if ui.checkbox(&mut value, text).clicked() {
-                        //         self.show_users.insert(player.name.clone(), value);
-                        //     }
-                        // }
                     }
                 });
 
@@ -207,16 +189,6 @@ impl eframe::App for App {
                 draw_state(self, ui, game_state);
             }
         });
-
-        // egui::CentralPanel::default().show(&ctx, |ui| {
-        //     ui.label(format!(
-        //         "===================================\n{}, fps={fps:.3}, upds={updates}\n",
-        //         self.counter,
-        //         fps = self.counter as f64 / self.start.elapsed().as_secs_f64(),
-        //         updates = self.updates_got,
-        //         // last_msg = self.last_msg
-        //     ));
-        // });
     }
 }
 
