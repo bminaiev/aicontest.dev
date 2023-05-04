@@ -1,6 +1,7 @@
 import socket
 import numpy as np
 import logging
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -84,9 +85,14 @@ if __name__ == "__main__":
     PASSWORD = "your_password"
 
     logger.info("Starting the bot...")
-    s = connect_to_game(SERVER, PORT, LOGIN, PASSWORD)
-    if s:
-        logger.info("Connected to the game server.")
-        play_game(s)
-    else:
-        logger.error("Failed to connect to the game server.")
+
+    while True:
+        s = connect_to_game(SERVER, PORT, LOGIN, PASSWORD)
+        if s:
+            logger.info("Connected to the game server.")
+            play_game(s)
+        else:
+            logger.error("Failed to connect to the game server.")
+
+        logger.info("Waiting for 1 second before reconnecting...")
+        time.sleep(1)
