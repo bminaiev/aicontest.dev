@@ -144,7 +144,6 @@ impl GameState {
                 if self.items[i].intersects(&self.players[id]) {
                     self.players[id].score += 1;
                     self.items.remove(i);
-                    // TODO: create new objects
                 }
             }
         }
