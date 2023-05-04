@@ -14,6 +14,7 @@ use game_common::{
     point::Point,
 };
 use instant::SystemTime;
+use poll_promise::Promise;
 use wasm_bindgen::{
     prelude::{wasm_bindgen, Closure},
     JsCast,
@@ -35,6 +36,7 @@ pub struct App {
     sort_players_by: SortBy,
     server_url: String,
     connected: bool,
+    top_results_promise: Promise<Vec<Player>>,
 }
 
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
@@ -116,6 +118,30 @@ impl App {
             );
         });
 
+        let (sender, promise) = Promise::new();
+        {
+            let request = ehttp::Request::get("https://aicontest.dev/top_results.txt");
+            ehttp::fetch(request, move |response| {
+                let mut res = vec![];
+                if let Ok(response) = response {
+                    if let Some(text) = response.text() {
+                        for line in text.lines() {
+                            let words: Vec<_> = line.split_ascii_whitespace().collect();
+                            res.push(Player {
+                                name: words[0].to_owned(),
+                                pos: Point::ZERO,
+                                speed: Point::ZERO,
+                                target: Point::ZERO,
+                                score: words[2].parse().unwrap(),
+                                radius: 0,
+                            })
+                        }
+                    }
+                }
+                sender.send(res);
+            });
+        }
+
         Self {
             receiver,
             state_approximator: StateApproximator::default(),
@@ -125,6 +151,7 @@ impl App {
             sort_players_by: SortBy::Score,
             server_url: server_url.to_owned(),
             connected: false,
+            top_results_promise: promise,
         }
     }
 }
@@ -174,9 +201,19 @@ impl eframe::App for App {
                 ui.checkbox(&mut self.show_top5, "Show top-5 players");
                 ui.separator();
 
+                if let Some(top_results) = self.top_results_promise.ready() {
+                    let top_results = top_results.clone();
+                    if !top_results.is_empty() {
+                        ui.collapsing("Highest Scores", |ui| {
+                            show_ratings(self, ui, top_results, false);
+                        });
+                        ui.separator();
+                    }
+                }
+
                 ui.vertical(|ui| {
                     if let Some(game_state) = &game_state {
-                        show_ratings(self, ui, game_state.players.clone());
+                        show_ratings(self, ui, game_state.players.clone(), true);
                     }
                 });
 
@@ -212,7 +249,12 @@ fn calc_places(players: &[Player]) -> Vec<(Player, String)> {
     res
 }
 
-fn show_ratings(app: &mut App, ui: &mut egui::Ui, mut players: Vec<Player>) {
+fn show_ratings(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    mut players: Vec<Player>,
+    show_first_column: bool,
+) {
     players.sort_by_key(|player| -player.score);
     let mut players = calc_places(&players);
 
@@ -233,14 +275,20 @@ fn show_ratings(app: &mut App, ui: &mut egui::Ui, mut players: Vec<Player>) {
         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
         .column(Column::auto())
         .column(Column::auto())
-        .column(Column::auto())
         .column(Column::auto());
+    let table = if show_first_column {
+        table.column(Column::auto())
+    } else {
+        table
+    };
 
     table
         .header(20.0, |mut header| {
-            header.col(|ui| {
-                ui.strong("");
-            });
+            if show_first_column {
+                header.col(|ui| {
+                    ui.strong("");
+                });
+            }
             header.col(|ui| {
                 ui.strong("#");
             });
@@ -255,12 +303,14 @@ fn show_ratings(app: &mut App, ui: &mut egui::Ui, mut players: Vec<Player>) {
             body.rows(text_height, players.len(), |row_index, mut row| {
                 let (player, place) = &players[row_index];
                 let color = choose_player_color(player);
-                row.col(|ui| {
-                    let mut value = *app.show_users.get(&player.name).unwrap_or(&false);
-                    if ui.checkbox(&mut value, "").clicked() {
-                        app.show_users.insert(player.name.clone(), value);
-                    }
-                });
+                if show_first_column {
+                    row.col(|ui| {
+                        let mut value = *app.show_users.get(&player.name).unwrap_or(&false);
+                        if ui.checkbox(&mut value, "").clicked() {
+                            app.show_users.insert(player.name.clone(), value);
+                        }
+                    });
+                }
                 row.col(|ui| {
                     ui.label(place);
                 });
