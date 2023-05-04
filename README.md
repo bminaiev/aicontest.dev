@@ -103,6 +103,7 @@ END_STATE
 ## Clients example
 
 - Rust: https://github.com/bminaiev/aicontest.dev/tree/master/example-client
+- Python: https://github.com/bminaiev/aicontest.dev/blob/master/example-client/python/player.py (use it on your own risk - it was fully written by GPT4, I didn't change anything).
 
 # Notes
 
