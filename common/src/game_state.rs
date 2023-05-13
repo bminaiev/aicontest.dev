@@ -110,8 +110,10 @@ impl TokenReader {
 }
 
 pub fn next_turn_player_state(player: &mut Player, width: i32, height: i32) {
-    let acc = player.target - player.pos;
-    let acc = acc.scale(MAX_ACC);
+    let mut acc = player.target - player.pos;
+    if acc.len() > MAX_ACC {
+        acc = acc.scale(MAX_ACC);
+    }
     player.speed += acc;
     if player.speed.len() > MAX_SPEED {
         player.speed = player.speed.scale(MAX_SPEED);
