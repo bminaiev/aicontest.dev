@@ -11,7 +11,7 @@ use anyhow::{anyhow, bail};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Player {
     pub name: String,
     pub pos: Point,
@@ -353,4 +353,25 @@ impl GameState {
             });
         }
     }
+}
+
+#[test]
+fn next_turn_state() {
+    let mut player = Player {
+        name: "player".to_owned(),
+        pos: Point { x: 100, y: 100 },
+        speed: Point { x: 10, y: 0 },
+        target: Point { x: 150, y: 200 }, // sent by `GO 150 200` command
+        score: 0,
+        radius: 1,
+    };
+    next_turn_player_state(&mut player, 1000, 1000);
+    // acceleration direction is (150, 200) - (100, 100) = (50, 100)
+    // the length of vector (50, 100) is sqrt(50^2 + 100^2) = 111.8, which is bigger than MAX_ACC=20.0, so real acceleration is:
+    // (50, 100) * 20.0 / 111.8 = (8.9, 17.8)
+    // after that acceleration is rounded to integers: (9, 18)
+    // new speed is (10, 0) + (9, 18) = (19, 18)
+    assert_eq!(player.speed, Point { x: 19, y: 18 });
+    // new position is (100, 100) + (19, 18) = (119, 118)
+    assert_eq!(player.pos, Point { x: 119, y: 118 });
 }
