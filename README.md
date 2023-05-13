@@ -10,7 +10,9 @@ the item is removed from the field and the player's score is increased by one.
 
 You can see the current game in real-time: https://aicontest.dev/
 
-![image](https://user-images.githubusercontent.com/2011126/236305046-41a362c5-cb8c-4bae-9722-865cbf47f3dc.png)
+
+![image](https://github.com/bminaiev/aicontest.dev/assets/2011126/1af3f18d-4173-496a-be71-9312d129cf57)
+
 
 
 # Navigating through the field
