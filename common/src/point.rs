@@ -7,11 +7,13 @@ pub struct Point {
 impl Point {
     pub const ZERO: Self = Point { x: 0, y: 0 };
 
-    pub fn len2(&self) -> i32 {
-        self.x * self.x + self.y * self.y
+    pub fn len2(&self) -> f64 {
+        let x = self.x as f64;
+        let y = self.y as f64;
+        x * x + y * y
     }
     pub fn len(&self) -> f64 {
-        (self.len2() as f64).sqrt()
+        self.len2().sqrt()
     }
 
     pub fn scale(&self, target_len: f64) -> Self {

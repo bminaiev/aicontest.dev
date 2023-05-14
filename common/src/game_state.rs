@@ -32,13 +32,13 @@ impl Item {
     pub fn intersects(&self, player: &Player) -> bool {
         let dist = self.pos - player.pos;
         let max_ok_dist = self.radius + player.radius;
-        dist.len2() <= max_ok_dist * max_ok_dist
+        dist.len2() <= (max_ok_dist * max_ok_dist) as f64
     }
 
     pub fn intersects_item(&self, another: &Self) -> bool {
         let dist = self.pos - another.pos;
         let max_ok_dist = self.radius + another.radius;
-        dist.len2() <= max_ok_dist * max_ok_dist
+        dist.len2() <= (max_ok_dist * max_ok_dist) as f64
     }
 }
 
@@ -336,8 +336,15 @@ impl GameState {
         }
     }
 
-    pub fn apply_move(&mut self, player_move: PlayerMove) {
+    pub fn apply_move(&mut self, mut player_move: PlayerMove) {
         // TODO: validate move
+        const MAX_C: u32 = u32::MAX / 10;
+        if player_move.target.x.unsigned_abs() > MAX_C
+            || player_move.target.y.unsigned_abs() > MAX_C
+        {
+            player_move.target.x /= 10;
+            player_move.target.y /= 10;
+        }
         if let Some(idx) = self.find_player_idx(&player_move.name) {
             self.players[idx].target = player_move.target;
         } else {
