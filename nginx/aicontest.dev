@@ -25,6 +25,10 @@ server {
         alias /home/game/git/game/data/top_results.txt;
     }
 
+    location /contest-platform/ {
+        proxy_pass http://127.0.0.1:3721/;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8080/;
     }
