@@ -1,11 +1,6 @@
 [workspace]
 
-members = [
-    "server",
-    "example-client",
-    "web",
-    "common"
-]
+members = ["server", "example-client", "web", "common"]
 
 [profile.release]
 debug = 1

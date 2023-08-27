@@ -6,24 +6,24 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 
-egui = "0.21.0"
-eframe = { version = "0.21.0", default-features = false, features = [
+egui = "0.22.0"
+eframe = { version = "0.22.0", default-features = false, features = [
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
 ] }
-egui_extras = "0.21.0"
-ehttp = "0.2.0"
-poll-promise = "0.2.0"
-console_error_panic_hook = "0.1.6"
-tracing-wasm = "0.2"
-wasm-bindgen-futures = "0.4"
-wasm-bindgen = "0.2"
+egui_extras = "0.22.0"
+ehttp = "0.3.0"
+poll-promise = "0.3.0"
+console_error_panic_hook = "0.1.7"
+tracing-wasm = "0.2.1"
+wasm-bindgen-futures = "0.4.37"
+wasm-bindgen = "0.2.87"
 web-sys = { version = "0.3.61", features = ["WebSocket", "CloseEvent"] }
 futures = "0.3.28"
-gloo-timers = { version = "0.2.6", features = ["futures"] }
-js-sys = "0.3.61"
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+js-sys = "0.3.64"
 game-common = { path = "../common" }
-getrandom = { version = "0.2.9", features = ["js"] }
+getrandom = { version = "0.2.10", features = ["js"] }
 instant = "0.1.12"
 
 [build]
